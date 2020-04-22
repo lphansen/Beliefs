@@ -166,15 +166,16 @@ class intertemporal_div_constraint:
         RE = RE_cond @ π
         
         # Calculate μ and moment bound
-        μ = - 1./self.ξ * np.log(self.ϵ)
-        moment_bound = μ - self.ξ*RE
+        μ = - self.ξ * np.log(self.ϵ)
+        moment_bound_check = μ - self.ξ*RE
         # Conditional moment bounds
         moment_bound_cond = []
         for i in np.arange(1,self.n_states+1,1):
             temp = np.mean(M[self.pd_lag_indicator[:,i-1]]*self.g[self.pd_lag_indicator[:,i-1]])
             moment_bound_cond.append(temp)
         moment_bound_cond = np.array(moment_bound_cond)
-
+        moment_bound = moment_bound_cond @ π
+        
         result = {'ϵ':self.ϵ,
                   'e':self.e,
                   'λ':λ,
@@ -187,6 +188,7 @@ class intertemporal_div_constraint:
                   'P':P,
                   'π':π,
                   'moment_bound':moment_bound,
+                  'moment_bound_check':moment_bound_check,
                   'moment_bound_cond':moment_bound_cond,
                   'M':M}
         
