@@ -51,9 +51,9 @@ class StaDivConstraint:
         ξ = multipliers[0]
         λ = multipliers[1:] 
         
-        term_1 = -self.g/ξ
+        term_1 = self.g
         term_2 = self.f@λ
-        x = term_1 + term_2
+        x = (term_1 + term_2)/(-ξ)
         # Use "max trick" to improve accuracy
         a = x.max()
         # log_E_exp(x)
@@ -90,9 +90,9 @@ class StaDivConstraint:
         λ = multipliers[1:]
         
         selector = self.pd_lag_indicator[:,self.state-1]
-        term_1 = -self.g[selector]/ξ
-        term_2 = self.f[:,(self.state-1)*self.n_f:self.state*self.n_f][selector]@λ
-        x = term_1 + term_2
+        term_1 = self.g[selector]
+        term_2 = (self.f[:,(self.state-1)*self.n_f:self.state*self.n_f][selector])@λ
+        x = (term_1 + term_2)/(-ξ)
         # Use "max trick" to improve accuracy
         a = x.max()
         # log_E_exp(x)
@@ -100,6 +100,73 @@ class StaDivConstraint:
         return (log_E_exp_x+self.k)*ξ
         
     
+    def _objective_min_k_approach_one(self,λ):
+        """
+        Objective function for finding the minimum value of k in approach one.
+        """    
+        x = -self.f@λ
+        # Use "max trick" to improve accuracy
+        a = x.max()
+        # log_E_exp(x)
+        log_E_exp_x = np.log(np.sum(np.exp(x-a))) + a - np.log(self.f.shape[0])
+        return log_E_exp_x
+    
+    
+    def _objective_min_k_approach_three(self,λ):
+        """
+        Objective function for finding the minimum value of k in approach three.
+        """
+        selector = self.pd_lag_indicator[:,self.state-1]
+        x = -(self.f[:,(self.state-1)*self.n_f:self.state*self.n_f][selector])@λ
+        # Use "max trick" to improve accuracy
+        a = x.max()
+        # log_E_exp(x)
+        log_E_exp_x = np.log(np.sum(np.exp(x-a))) + a - np.log(np.sum(selector))
+        return log_E_exp_x
+    
+    
+    def cal_min_k(self,approach=1,state=None):
+        """
+        Use scipy.minimize (L-BFGS-B, BFGS, CG) to solve the minimization problem.
+        """
+        if approach == 1:
+            objective = self._objective_min_k_approach_one
+            initial_point = np.ones(self.n_f*self.n_states)          
+        elif approach == 2:
+            objective = self._objective_min_k_approach_two
+            initial_point = np.ones(self.n_f*self.n_states)
+        elif approach == 3:
+            if state not in [1,2,3]:
+                raise Exception('Please correctly specify state in approach 3. It should be 1,2 or 3.')
+            else:
+                self.state = state
+            objective = self._objective_min_k_approach_three
+            initial_point = np.ones(self.n_f)
+        else:
+            raise Exception('Approach should be 1,2 or 3. The specified approach was: {}'.format(approach))
+            
+        for method in ['L-BFGS-B','BFGS','CG']:
+            model = minimize(objective, 
+                             initial_point,
+                             method=method,
+                             tol=self.tol,
+                             options={'maxiter': self.max_iter})
+            if model.success:
+                break
+                
+        if model.success == False:
+            print("---Warning: the convex solver fails---")
+            print(model.message)
+            
+        # Save optimization status
+        result = {'result':-model.fun,
+               'success':model.success,
+               'message':model.message,
+               'nit':model.nit,
+               'λ':model.x}
+        
+        return result        
+        
     def solve(self,k,approach=1,state=None):
         """
         Use scipy.minimize (L-BFGS-B, SLSQP) to solve the minimization problem.

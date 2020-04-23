@@ -147,11 +147,22 @@ class InterDivConstraint:
             E_M_cond.append(temp)
         E_M_cond = np.array(E_M_cond)
         
-        # Calculate transition matrix and staionary distorted distribution
+        # Calculate transition matrix and staionary distribution under distorted probability
+        P_tilde = np.zeros((self.n_states,self.n_states))
+        for i in np.arange(1,self.n_states+1,1):
+            for j in np.arange(1,self.n_states+1,1):
+                P_tilde[i-1,j-1] = np.mean(M[self.pd_lag_indicator[:,i-1]]*self.pd_indicator[self.pd_lag_indicator[:,i-1]][:,j-1]) 
+        A = P_tilde.T - np.eye(self.n_states)
+        A[-1] = np.ones(self.n_states)
+        B = np.zeros(self.n_states)
+        B[-1] = 1.
+        π_tilde = np.linalg.solve(A, B)
+        
+        # Calculate transition matrix and stationary distribution under the original empirical probability
         P = np.zeros((self.n_states,self.n_states))
         for i in np.arange(1,self.n_states+1,1):
             for j in np.arange(1,self.n_states+1,1):
-                P[i-1,j-1] = np.mean(M[self.pd_lag_indicator[:,i-1]]*self.pd_indicator[self.pd_lag_indicator[:,i-1]][:,j-1]) 
+                P[i-1,j-1] = np.mean(self.pd_indicator[self.pd_lag_indicator[:,i-1]][:,j-1]) 
         A = P.T - np.eye(self.n_states)
         A[-1] = np.ones(self.n_states)
         B = np.zeros(self.n_states)
@@ -164,7 +175,7 @@ class InterDivConstraint:
             temp = np.mean(M[self.pd_lag_indicator[:,i-1]]*np.log(M[self.pd_lag_indicator[:,i-1]]))
             RE_cond.append(temp)
         RE_cond = np.array(RE_cond)
-        RE = RE_cond @ π
+        RE = RE_cond @ π_tilde
         
         # Calculate μ and moment bound
         μ = - self.ξ * np.log(self.ϵ)
@@ -175,7 +186,7 @@ class InterDivConstraint:
             temp = np.mean(M[self.pd_lag_indicator[:,i-1]]*self.g[self.pd_lag_indicator[:,i-1]])
             moment_bound_cond.append(temp)
         moment_bound_cond = np.array(moment_bound_cond)
-        moment_bound = moment_bound_cond @ π
+        moment_bound = moment_bound_cond @ π_tilde
         
         # Calculate v
         v_0 = -self.ξ * np.log(self.e)
@@ -192,6 +203,8 @@ class InterDivConstraint:
                   'E_M_cond':E_M_cond,
                   'P':P,
                   'π':π,
+                  'P_tilde':P_tilde,
+                  'π_tilde':π_tilde,
                   'moment_bound':moment_bound,
                   'moment_bound_check':moment_bound_check,
                   'moment_bound_cond':moment_bound_cond,
