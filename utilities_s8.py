@@ -76,14 +76,20 @@ class InterDivConstraint:
     def _objective(self,λ):
         """
         Objective function of the minimization problem.
-        """        
-        return _objective_numba(self.f,self.g,self.pd_lag_indicator,self.pd_indicator_float,self.state,self.n_f,self.e,self.ξ,λ)
+        """
+        if self.lower:
+            return _objective_numba(self.f,self.g,self.pd_lag_indicator,self.pd_indicator_float,self.state,self.n_f,self.e,self.ξ,λ)
+        else:
+            return _objective_numba(self.f,-self.g,self.pd_lag_indicator,self.pd_indicator_float,self.state,self.n_f,self.e,self.ξ,λ)            
     
     def _objective_gradient(self,λ):
         """
         Gradient of the objective function.     
         """
-        return _objective_gradient_numba(self.f,self.g,self.pd_lag_indicator,self.pd_indicator_float,self.state,self.n_f,self.e,self.ξ,λ)
+        if self.lower:
+            return _objective_gradient_numba(self.f,self.g,self.pd_lag_indicator,self.pd_indicator_float,self.state,self.n_f,self.e,self.ξ,λ)
+        else:
+            return _objective_gradient_numba(self.f,-self.g,self.pd_lag_indicator,self.pd_indicator_float,self.state,self.n_f,self.e,self.ξ,λ)            
     
     def _min_objective(self):
         """
@@ -108,13 +114,14 @@ class InterDivConstraint:
         return v,λ
     
 
-    def iterate(self,ξ):
+    def iterate(self,ξ,lower=True):
         """
         Iterate to get staitionary e and ϵ (eigenvector and eigenvalue) for the minimization problem. Here we fix ξ.
         Return a dictionary of variables that are of our interest. 
         """
         # Fix ξ
         self.ξ = ξ
+        self.lower = lower
         
         # initial error
         error = 1.
@@ -140,7 +147,10 @@ class InterDivConstraint:
             count += 1
         
         # Calculate M and E[M|state k]
-        M = 1./self.ϵ * np.exp(-self.g/self.ξ+self.f@λ) * (self.pd_indicator@self.e) / (self.pd_lag_indicator@self.e)
+        if self.lower:
+            M = 1./self.ϵ * np.exp(-self.g/self.ξ+self.f@λ) * (self.pd_indicator@self.e) / (self.pd_lag_indicator@self.e)
+        else:
+            M = 1./self.ϵ * np.exp(self.g/self.ξ+self.f@λ) * (self.pd_indicator@self.e) / (self.pd_lag_indicator@self.e)
         E_M_cond = []
         for i in np.arange(1,self.n_states+1,1):
             temp = np.mean(M[self.pd_lag_indicator[:,i-1]])
@@ -167,7 +177,7 @@ class InterDivConstraint:
         A[-1] = np.ones(self.n_states)
         B = np.zeros(self.n_states)
         B[-1] = 1.
-        π = np.linalg.solve(A, B)        
+        π = np.linalg.solve(A, B)
         
         # Calculate conditional/unconditional 
         RE_cond = []
@@ -187,6 +197,14 @@ class InterDivConstraint:
             moment_bound_cond.append(temp)
         moment_bound_cond = np.array(moment_bound_cond)
         moment_bound = moment_bound_cond @ π_tilde
+        
+        # Calculate the original conditional/unconditional moment for g(X)
+        # Original moment 
+        moment_cond = []
+        for i in np.arange(1,self.n_states+1,1):
+            temp = np.mean(self.g[self.pd_lag_indicator[:,i-1]])
+            moment_cond.append(temp)  
+        moment = np.mean(self.g)
         
         # Calculate v
         v_0 = -self.ξ * np.log(self.e)
@@ -208,6 +226,8 @@ class InterDivConstraint:
                   'moment_bound':moment_bound,
                   'moment_bound_check':moment_bound_check,
                   'moment_bound_cond':moment_bound_cond,
+                  'moment_cond':moment_cond,
+                  'moment':moment,
                   'M':M}
         
         return result
