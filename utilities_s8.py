@@ -177,12 +177,16 @@ class InterDivConstraint:
         moment_bound_cond = np.array(moment_bound_cond)
         moment_bound = moment_bound_cond @ π
         
+        # Calculate v
+        v_0 = -self.ξ * np.log(self.e)
+        
         result = {'ϵ':self.ϵ,
                   'e':self.e,
                   'λ':λ,
                   'count':count,
                   'ξ':self.ξ,
                   'μ':μ,
+                  'v_0':v_0,
                   'RE_cond':RE_cond,
                   'RE':RE,
                   'E_M_cond':E_M_cond,
