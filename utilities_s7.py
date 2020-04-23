@@ -147,7 +147,9 @@ class StaDivConstraint:
         result = {'result':-model.fun,
                'success':model.success,
                'message':model.message,
-               'nit':model.nit}
+               'nit':model.nit,
+               'ξ':model.x[0],
+               'λ':model.x[1:]}
         
         return result
         
