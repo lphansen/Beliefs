@@ -100,7 +100,7 @@ class StaDivConstraint:
         return (log_E_exp_x+self.k)*ξ
         
     
-    def min_objective(self,k,approach=1,state=None):
+    def solve(self,k,approach=1,state=None):
         """
         Use scipy.minimize (L-BFGS-B, SLSQP) to solve the minimization problem.
         """
@@ -125,7 +125,7 @@ class StaDivConstraint:
         for i in range(len(initial_point)):
             # Set first variable to be ξ
             if i==0:
-                bounds.append((0,None))
+                bounds.append((1e-16,None))
             else:
                 bounds.append((None,None))
             
