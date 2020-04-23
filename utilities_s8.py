@@ -6,7 +6,7 @@ from scipy.optimize import minimize
 
 
 @jit
-def objective_numba(f,g,pd_lag_indicator,pd_indicator_float,state,n_f,e,ξ,λ):
+def _objective_numba(f,g,pd_lag_indicator,pd_indicator_float,state,n_f,e,ξ,λ):
     """
     Objective function of the minimization problem. Use numba.jit to boost computational performance.
     """        
@@ -21,7 +21,7 @@ def objective_numba(f,g,pd_lag_indicator,pd_indicator_float,state,n_f,e,ξ,λ):
     return np.log(np.sum(np.exp(x-a))) + a    
 
 @jit
-def objective_gradient_numba(f,g,pd_lag_indicator,pd_indicator_float,state,n_f,e,ξ,λ):
+def _objective_gradient_numba(f,g,pd_lag_indicator,pd_indicator_float,state,n_f,e,ξ,λ):
     """
     Gradient of the objective function. Use numba.jit to boost computational performance.
     """         
@@ -33,7 +33,7 @@ def objective_gradient_numba(f,g,pd_lag_indicator,pd_indicator_float,state,n_f,e
         temp3[i] = np.mean(temp2[:,i])
     return temp3
 
-class intertemporal_div_constraint:
+class InterDivConstraint:
     def __init__(self,tol=1e-8,max_iter=1000):
         """
         Load datasets and initialize the solver.
@@ -73,26 +73,27 @@ class intertemporal_div_constraint:
         self.max_iter = max_iter
         
         
-    def objective(self,λ):
+    def _objective(self,λ):
         """
         Objective function of the minimization problem.
         """        
-        return objective_numba(self.f,self.g,self.pd_lag_indicator,self.pd_indicator_float,self.state,self.n_f,self.e,self.ξ,λ)
+        return _objective_numba(self.f,self.g,self.pd_lag_indicator,self.pd_indicator_float,self.state,self.n_f,self.e,self.ξ,λ)
     
-    def objective_gradient(self,λ):
+    def _objective_gradient(self,λ):
         """
         Gradient of the objective function.     
         """
-        return objective_gradient_numba(self.f,self.g,self.pd_lag_indicator,self.pd_indicator_float,self.state,self.n_f,self.e,self.ξ,λ)
+        return _objective_gradient_numba(self.f,self.g,self.pd_lag_indicator,self.pd_indicator_float,self.state,self.n_f,self.e,self.ξ,λ)
     
-    def min_objective(self):
+    def _min_objective(self):
         """
         Use scipy.minimize (L-BFGS-B, BFGS or CG) to solve the minimization problem.
         """
         for method in ['L-BFGS-B','BFGS','CG']:
-            model = minimize(self.objective, 
+            model = minimize(self._objective, 
                              np.ones(self.n_f), 
                              method=method,
+                             jac = self._objective_gradient,
                              tol=self.tol,
                              options={'maxiter': self.max_iter})
             if model.success:
@@ -130,7 +131,7 @@ class intertemporal_div_constraint:
                 λ = np.zeros(self.n_states*self.n_f)
             for k in np.arange(1,self.n_states+1,1):
                 self.state = k
-                v[self.state-1],λ[(self.state-1)*self.n_f:self.state*self.n_f] = self.min_objective()
+                v[self.state-1],λ[(self.state-1)*self.n_f:self.state*self.n_f] = self._min_objective()
             # update e and ϵ
             e_old = self.e
             self.ϵ = v[0]
