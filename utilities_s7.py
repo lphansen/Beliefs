@@ -51,7 +51,10 @@ class StaDivConstraint:
         ξ = multipliers[0]
         λ = multipliers[1:] 
         
-        term_1 = self.g
+        if self.lower:
+            term_1 = self.g
+        else:
+            term_1 = -self.g
         term_2 = self.f@λ
         x = (term_1 + term_2)/(-ξ)
         # Use "max trick" to improve accuracy
@@ -167,11 +170,13 @@ class StaDivConstraint:
         
         return result        
         
-    def solve(self,k,approach=1,state=None):
+    def solve(self,k,approach=1,state=None,lower=True):
         """
         Use scipy.minimize (L-BFGS-B, SLSQP) to solve the minimization problem.
         """
         self.k = k
+        self.lower = lower
+        
         if approach == 1:
             objective = self._objective_approach_one
             initial_point = np.ones(self.n_f*self.n_states+1)          
@@ -218,7 +223,58 @@ class StaDivConstraint:
                'ξ':model.x[0],
                'λ':model.x[1:]}
         
-        return result
+        if approach == 1:
+            # Calculate M
+            if self.lower:
+                temp = np.exp(-1./result['ξ'] * (self.g + self.f@result['λ']))
+            else:
+                temp = np.exp(-1./result['ξ'] * (-self.g + self.f@result['λ']))
+            M = temp/np.mean(temp)
+
+            # Calculate empirical probability
+            π = np.zeros(self.n_states)
+            for i in np.arange(1,self.n_states+1,1):
+                π[i-1] = np.mean(self.pd_lag_indicator[:,i-1])
+
+            # Calculate distorted probability
+            π_tilde = np.zeros_like(π)
+            for i in np.arange(1,self.n_states+1,1):
+                π_tilde[i-1] = np.mean(M * self.pd_lag_indicator[:,i-1])
+
+            # Calculate conditional/unconditional moment bound
+            moment_bound_cond = []
+            for i in np.arange(1,self.n_states+1,1):
+                temp = np.mean(M*self.g*self.pd_lag_indicator[:,i-1]) / np.mean(M*self.pd_lag_indicator[:,i-1])
+                moment_bound_cond.append(temp)
+            moment_bound_cond = np.array(moment_bound_cond)
+            moment_bound = np.mean(M*self.g)
+
+            # Calculate conditional/unconditional relative entropy
+            RE_cond = []
+            for i in np.arange(1,self.n_states+1,1):
+                temp = np.mean(M*np.log(M)*self.pd_lag_indicator[:,i-1]) / np.mean(M*self.pd_lag_indicator[:,i-1])
+                RE_cond.append(temp)
+            RE_cond = np.array(RE_cond)
+            RE = np.mean(M*np.log(M))   
+            
+            # Calculate the original conditional/unconditional moment for g(X)
+            # Original moment 
+            moment_cond = []
+            for i in np.arange(1,self.n_states+1,1):
+                temp = np.mean(self.g[self.pd_lag_indicator[:,i-1]])
+                moment_cond.append(temp)  
+            moment = np.mean(self.g)
+        
+            return {'π':π,
+                    'π_tilde':π_tilde,
+                    'moment_bound_cond':moment_bound_cond,
+                    'moment_bound':moment_bound,
+                    'moment_cond':moment_cond,
+                    'moment':moment,
+                    'RE_cond':RE_cond,
+                    'RE':RE}
+        else:
+            return result
         
         
     
