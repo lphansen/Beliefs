@@ -33,6 +33,40 @@ def _objective_gradient_numba(f,g,pd_lag_indicator,pd_indicator_float,state,n_f,
         temp3[i] = np.mean(temp2[:,i])
     return temp3
 
+@jit 
+def _objective_check_3_numba(f,g,pd_lag_indicator,pd_indicator_float,state,n_f,e,r,λ):
+    """
+    Objective function of the minimization problem for check 3. Here we include g(x)-r=0 in the moment conditions. Use numba.jit to boost computational performance.
+    """
+    selector = pd_lag_indicator[:,state-1]
+    λ_1 = λ[:-1]
+    λ_2 = λ[-1]
+    term_1 = f[:,(state-1)*n_f:state*n_f][selector]@λ_1
+    term_2 = (g[selector]-r)*λ_2
+    term_3 = np.log(pd_indicator_float[selector]@e)
+    x = term_1 + term_2 + term_3
+    # Use "max trick" to improve accuracy
+    a = x.max()
+    # log_E_exp(x) + log(N)
+    return np.log(np.sum(np.exp(x-a))) + a  
+
+@jit
+def _objective_gradient_check_3_numba(f,g,pd_lag_indicator,pd_indicator_float,state,n_f,e,r,λ):
+    """
+    Gradient for the objective function in check 3. Here we include g(x)-r=0 in the moment conditions. Use numba.jit to boost computational performance.
+    """         
+    selector = pd_lag_indicator[:,state-1]
+    λ_1 = λ[:-1]
+    λ_2 = λ[-1]    
+    temp1 = f[:,(state-1)*n_f:state*n_f][selector]@λ_1 + (g[selector]-r)*λ_2 + np.log(pd_indicator_float[selector]@e)
+    temp = np.concatenate((f[:,(state-1)*n_f:state*n_f][selector],g[selector].reshape(-1,1)-r),axis=1)
+    temp2 = temp*(np.exp(temp1.reshape((len(temp1),1)))/np.mean(np.exp(temp1)))
+    temp3 = np.empty(temp2.shape[1])
+    for i in range(temp2.shape[1]):
+        temp3[i] = np.mean(temp2[:,i])
+    return temp3
+
+
 class InterDivConstraint:
     def __init__(self,tol=1e-8,max_iter=1000):
         """
@@ -367,3 +401,78 @@ class InterDivConstraint:
                   'count':count}
         
         return result    
+
+    '''
+    Methods related to the minimization problems where we inlcude g(x)-r=0 in the moment conditions.
+    '''  
+        
+    def _objective_check_3(self,λ):
+        """
+        Objective function of the minimization problem for check 3. Here we include g(x)-r=0 in the moment conditions.
+        """
+        return _objective_check_3_numba(self.f,self.g,self.pd_lag_indicator,self.pd_indicator_float,self.state,self.n_f,self.e,self.r,λ)         
+    
+    def _objective_gradient_check_3(self,λ):
+        """
+        Gradient of the objective function.     
+        """
+        return _objective_gradient_check_3_numba(self.f,self.g,self.pd_lag_indicator,self.pd_indicator_float,self.state,self.n_f,self.e,self.r,λ) 
+    
+    def _min_objective_check_3(self):
+        """
+        Use scipy.minimize (L-BFGS-B, BFGS or CG) to solve the minimization problem for check 3. Here we include g(x)-r=0 in the moment conditions.
+        """
+        for method in ['L-BFGS-B','BFGS','CG']:
+            model = minimize(self._objective_check_3, 
+                             np.ones(self.n_f+1), 
+                             method=method,
+                             jac=self._objective_gradient_check_3,
+                             tol=self.tol,
+                             options={'maxiter': self.max_iter})
+            if model.success:
+                break
+        if model.success == False:
+            print("---Warning: the convex solver fails---")
+            print(model.message)
+            
+        # Calculate v and λ (here λ is of dimension self.n_f+1)
+        v = np.exp(model.fun)/np.sum(self.pd_lag_indicator[:,self.state-1])
+        λ = model.x
+        return v,λ
+    
+    def iterate_check_3(self,r):
+        """
+        Iterate to get staitionary e and ϵ (eigenvector and eigenvalue) for the minimization problem. Here we set g(X) to be 0.
+        Return a dictionary of variables that are of our interest. 
+        """
+        
+        self.r = r
+        # initial error
+        error = 1.
+        # count times
+        count = 0
+
+        while error > self.tol:
+            if count == 0:
+                # initial guess for e
+                self.e = np.ones(self.n_states)
+                # placeholder for v
+                v = np.zeros(self.n_states)   
+                # placeholder for λ
+                λ = np.zeros(self.n_states*(self.n_f+1))
+            for k in np.arange(1,self.n_states+1,1):
+                self.state = k
+                v[self.state-1],λ[(self.state-1)*(self.n_f+1):self.state*(self.n_f+1)] = self._min_objective_check_3()
+            # update e and ϵ
+            e_old = self.e
+            self.ϵ = v[0]
+            self.e = v/v[0]
+            error = np.max(np.abs(self.e - e_old))
+            count += 1
+        
+        result = {'ϵ':self.ϵ,
+                  'e':self.e,
+                  'λ':λ,
+                  'count':count}
+        
+        return result
