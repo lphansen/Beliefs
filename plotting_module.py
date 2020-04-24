@@ -155,3 +155,41 @@ def entropy_moment_bounds_s8():
 
 
     fig.show()
+    
+    
+def RE_on_r_s8():
+    # Solve the minimization problems over a grid of ξ
+    tol = 2e-10
+    max_iter = 1000
+
+    solver_s8 = InterDivConstraint(tol,max_iter)
+
+    # Grid for r
+    r_grid = np.arange(0.,0.0101,.0005)
+    REs_min = np.zeros_like(r_grid)
+    
+    for i in range(len(r_grid)):
+        r = r_grid[i]
+        result = solver_s8.iterate_check_3(r)
+        REs_min[i] = -np.log(result['ϵ'])
+
+    # Plots for RE and E[Mg(X)]
+    fig = go.Figure()
+    
+    fig.add_trace(
+        go.Scatter(x=r_grid, y=REs_min, name='RE', line=dict(color='blue'))
+    )
+
+    fig.add_trace(
+        go.Scatter(x=r_grid, y=np.ones_like(r_grid)*REs_min.min()*1.1, name='1.1x minimum RE', line=dict(color='black',dash='dash')),
+    )
+
+    fig.update_layout(height=400, width=1000, title_text="Relative entropy", showlegend = True)
+    fig.update_xaxes(rangemode="tozero",title_text='r')
+    fig.update_yaxes(rangemode="tozero")
+    
+    fig['layout']['xaxis'].update(range = (0,0.01))
+#     fig['layout']['yaxis'].update(range = (0.,0.06))
+
+
+    fig.show()
