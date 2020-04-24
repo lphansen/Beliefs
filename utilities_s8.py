@@ -4,7 +4,7 @@ import pandas as pd
 from numba import jit
 from scipy.optimize import minimize
 
-
+    
 @jit
 def _objective_numba(f,g,pd_lag_indicator,pd_indicator_float,state,n_f,e,ξ,λ):
     """
@@ -17,7 +17,7 @@ def _objective_numba(f,g,pd_lag_indicator,pd_indicator_float,state,n_f,e,ξ,λ):
     x = term_1 + term_2 + term_3
     # Use "max trick" to improve accuracy
     a = x.max()
-    # log_E_exp(x)
+    # log_E_exp(x) + log(N)
     return np.log(np.sum(np.exp(x-a))) + a    
 
 @jit
@@ -72,7 +72,10 @@ class InterDivConstraint:
         self.tol = tol
         self.max_iter = max_iter
         
-        
+    
+    '''
+    Methods to related to the minimization problem in section 8.
+    '''
     def _objective(self,λ):
         """
         Objective function of the minimization problem.
@@ -232,6 +235,135 @@ class InterDivConstraint:
         
         return result
     
+    '''
+    Methods related to the minimization problems where we set g(X)=0
+    '''
+    
+    def _objective_check_1(self,λ):
+        """
+        Objective function of the minimization problem for check 1. Here we set g(X)=0.
+        """
+        selector = self.pd_lag_indicator[:,self.state-1]
+        term_2 = self.f[:,(self.state-1)*self.n_f:self.state*self.n_f][selector]@λ
+        term_3 = np.log(self.pd_indicator_float[selector]@self.e)
+        x = term_2 + term_3
+        # Use "max trick" to improve accuracy
+        a = x.max()
+        # log_E_exp(x) + log(N)
+        return np.log(np.sum(np.exp(x-a))) + a          
+        
+    def _min_objective_check_1(self):
+        """
+        Use scipy.minimize (L-BFGS-B, BFGS or CG) to solve the minimization problem for check 1. Here we set g(X)=0.
+        """
+        for method in ['L-BFGS-B','BFGS','CG']:
+            model = minimize(self._objective_check_1, 
+                             np.ones(self.n_f), 
+                             method=method,
+                             tol=self.tol,
+                             options={'maxiter': self.max_iter})
+            if model.success:
+                break
+        if model.success == False:
+            print("---Warning: the convex solver fails---")
+            print(model.message)
+            
+        # Calculate v and λ (here λ is of dimension self.n_f)
+        v = np.exp(model.fun)/np.sum(self.pd_lag_indicator[:,self.state-1])
+        λ = model.x
+        return v,λ
+    
+    def iterate_check_1(self):
+        """
+        Iterate to get staitionary e and ϵ (eigenvector and eigenvalue) for the minimization problem. Here we set g(X) to be 0.
+        Return a dictionary of variables that are of our interest. 
+        """
+        
+        # initial error
+        error = 1.
+        # count times
+        count = 0
+
+        while error > self.tol:
+            if count == 0:
+                # initial guess for e
+                self.e = np.ones(self.n_states)
+                # placeholder for v
+                v = np.zeros(self.n_states)   
+                # placeholder for λ
+                λ = np.zeros(self.n_states*self.n_f)
+            for k in np.arange(1,self.n_states+1,1):
+                self.state = k
+                v[self.state-1],λ[(self.state-1)*self.n_f:self.state*self.n_f] = self._min_objective_check_1()
+            # update e and ϵ
+            e_old = self.e
+            self.ϵ = v[0]
+            self.e = v/v[0]
+            error = np.max(np.abs(self.e - e_old))
+            count += 1
+        
+        result = {'ϵ':self.ϵ,
+                  'e':self.e,
+                  'λ':λ,
+                  'count':count}
+        
+        return result
     
     
-    
+    '''
+    Methods related to the minimization problems where we set f(X)=0, ξ=1.
+    '''    
+    def _objective_check_2(self):
+        """
+        Objective function of the minimization problem for check 2. Here we set f(X)=0, ξ=1.
+        """
+        selector = self.pd_lag_indicator[:,self.state-1]
+        term_1 = -self.g[selector]
+        term_3 = np.log(self.pd_indicator_float[selector]@self.e)
+        x = term_1 + term_3
+        # Use "max trick" to improve accuracy
+        a = x.max()
+        # log_E_exp(x) + log(N)
+        fun = np.log(np.sum(np.exp(x-a))) + a    
+        v = np.exp(fun)/np.sum(self.pd_lag_indicator[:,self.state-1])
+        return v
+        
+    def iterate_check_2(self):
+        """
+        Iterate to get staitionary e and ϵ (eigenvector and eigenvalue) for the minimization problem. Here we set f(X)=0, ξ=1.
+        Return a dictionary of variables that are of our interest. 
+        """
+        
+        # initial error
+        error = 1.
+        # count times
+        count = 0
+
+        while error > self.tol:
+            if count == 0:
+                # initial guess for e
+                self.e = np.ones(self.n_states)
+                # placeholder for v
+                v = np.zeros(self.n_states)   
+            for k in np.arange(1,self.n_states+1,1):
+                self.state = k
+                v[self.state-1] = self._objective_check_2()
+            # update e and ϵ
+            e_old = self.e
+            self.ϵ = v[0]
+            self.e = v/v[0]
+            error = np.max(np.abs(self.e - e_old))
+            count += 1
+        
+        μ   = - np.log(self.ϵ)
+        v_0 = - np.log(self.e)
+        moment = np.mean(self.g)
+        
+        result = {'ϵ':self.ϵ,
+                  'e':self.e,
+                  'μ':μ,
+                  'v_0':v_0,
+                  'moment':moment,
+                  'count':count}
+        
+        return result    
