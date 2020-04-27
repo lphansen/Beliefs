@@ -165,7 +165,7 @@ def RE_on_r_s8():
     solver_s8 = InterDivConstraint(tol,max_iter)
 
     # Grid for r
-    r_grid = np.arange(0.,0.0101,.0005)
+    r_grid = np.arange(0.,0.0101,.0001)
     REs_min = np.zeros_like(r_grid)
     
     for i in range(len(r_grid)):
