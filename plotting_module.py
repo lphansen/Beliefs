@@ -38,29 +38,29 @@ def entropy_moment_bounds():
 
     # Plots for RE and E[Mg(X)]
     fig = make_subplots(rows=1, cols=2)
+    
     fig.add_trace(
-        go.Scatter(x=ξ_grid, y=REs_lower, name='E[MlogM] for lower bound problem', line=dict(color='blue')),
+        go.Scatter(x=ξ_grid, y=np.ones_like(ξ_grid)*REs_lower[-1]*1.2, name='1.2x min RE', line=dict(color='black',dash='dash')),
+        row=1, col=1
+    )    
+    
+    fig.add_trace(
+        go.Scatter(x=ξ_grid, y=REs_lower, name='lower bound', line=dict(color='blue')),
         row=1, col=1
     )
 
     fig.add_trace(
-        go.Scatter(x=ξ_grid, y=REs_upper, name='E[MlogM] for upper bound problem', line=dict(color='purple')),
+        go.Scatter(x=ξ_grid, y=REs_upper, name='upper bound', line=dict(color='purple')),
         row=1, col=1
     )
     
     fig.add_trace(
-        go.Scatter(x=ξ_grid, y=np.ones_like(ξ_grid)*REs_lower[-1]*1.1, name='1.1x minimum RE', line=dict(color='black',dash='dash')),
-        row=1, col=1
-    )
-
-
-    fig.add_trace(
-        go.Scatter(x=ξ_grid, y=moment_bounds_lower, name='E[Mg(X)], lower bound', line=dict(color='green')),
+        go.Scatter(x=ξ_grid, y=moment_bounds_lower, name='lower bound', line=dict(color='green')),
         row=1, col=2
     )
 
     fig.add_trace(
-        go.Scatter(x=ξ_grid, y=moment_bounds_upper, name='E[Mg(X)], upper bound', line=dict(color='red')),
+        go.Scatter(x=ξ_grid, y=moment_bounds_upper, name='upper bound', line=dict(color='red')),
         row=1, col=2
     )
 
@@ -71,48 +71,48 @@ def entropy_moment_bounds():
 
 
     fig.add_trace(
-        go.Scatter(x=ξ_grid, y=moment_bounds_cond_lower[:,0], name='E[Mg(X)|state 1], lower bound', visible=False, line=dict(color='green')),
+        go.Scatter(x=ξ_grid, y=moment_bounds_cond_lower[:,0], name='lower bound', visible=False, line=dict(color='green')),
         row=1, col=2
     )
 
     fig.add_trace(
-        go.Scatter(x=ξ_grid, y=moment_bounds_cond_upper[:,0], name='E[Mg(X)|state 1], upper bound', visible=False, line=dict(color='red')),
+        go.Scatter(x=ξ_grid, y=moment_bounds_cond_upper[:,0], name='upper bound', visible=False, line=dict(color='red')),
         row=1, col=2
     )
 
     fig.add_trace(
-        go.Scatter(x=ξ_grid, y=moment_cond[:,0], name='E[g(X)|state 1]', visible=False, line=dict(dash='dash',color='orange')),
+        go.Scatter(x=ξ_grid, y=moment_cond[:,0], name='E[g(X)|1]', visible=False, line=dict(dash='dash',color='orange')),
         row=1, col=2
     )
 
     fig.add_trace(
-        go.Scatter(x=ξ_grid, y=moment_bounds_cond_lower[:,1], name='E[Mg(X)|state 2], lower bound', visible=False, line=dict(color='green')),
+        go.Scatter(x=ξ_grid, y=moment_bounds_cond_lower[:,1], name='lower bound', visible=False, line=dict(color='green')),
         row=1, col=2
     )
 
     fig.add_trace(
-        go.Scatter(x=ξ_grid, y=moment_bounds_cond_upper[:,1], name='E[Mg(X)|state 2], upper bound', visible=False, line=dict(color='red')),
+        go.Scatter(x=ξ_grid, y=moment_bounds_cond_upper[:,1], name='upper bound', visible=False, line=dict(color='red')),
         row=1, col=2
     )
 
     fig.add_trace(
-        go.Scatter(x=ξ_grid, y=moment_cond[:,1], name='E[g(X)|state 2]', visible=False, line=dict(dash='dash',color='orange')),
+        go.Scatter(x=ξ_grid, y=moment_cond[:,1], name='E[g(X)|2]', visible=False, line=dict(dash='dash',color='orange')),
         row=1, col=2
     )
 
 
     fig.add_trace(
-        go.Scatter(x=ξ_grid, y=moment_bounds_cond_lower[:,2], name='E[Mg(X)|state 3], lower bound', visible=False, line=dict(color='green')),
+        go.Scatter(x=ξ_grid, y=moment_bounds_cond_lower[:,2], name='lower bound', visible=False, line=dict(color='green')),
         row=1, col=2
     )
 
     fig.add_trace(
-        go.Scatter(x=ξ_grid, y=moment_bounds_cond_upper[:,2], name='E[Mg(X)|state 3], upper bound', visible=False, line=dict(color='red')),
+        go.Scatter(x=ξ_grid, y=moment_bounds_cond_upper[:,2], name='upper bound', visible=False, line=dict(color='red')),
         row=1, col=2
     )
 
     fig.add_trace(
-        go.Scatter(x=ξ_grid, y=moment_cond[:,2], name='E[g(X)|state 3]', visible=False, line=dict(dash='dash',color='orange')),
+        go.Scatter(x=ξ_grid, y=moment_cond[:,2], name='E[g(X)|3]', visible=False, line=dict(dash='dash',color='orange')),
         row=1, col=2
     )
 
@@ -120,8 +120,8 @@ def entropy_moment_bounds():
     fig.update_layout(height=400, width=1000, title_text="Relative entropy (left) and moment bounds (right)", showlegend = False)
     fig.update_xaxes(rangemode="tozero",title_text='ξ')
     fig.update_yaxes(rangemode="tozero")
-
-    # fig['layout']['xaxis'+str(int(1))].update(range = (0,0.2))
+    
+    fig['layout']['xaxis'+str(int(1))].update(range = (0.,1.))
     fig['layout']['yaxis'+str(int(1))].update(range = (0.,0.06))
     fig['layout']['xaxis'+str(int(2))].update(range = (0.,1.))
     fig['layout']['yaxis'+str(int(2))].update(range = (-0.01,0.04))
@@ -155,16 +155,16 @@ def entropy_moment_bounds():
 
     fig.show()
     
-def box_chart():
+def box_chart(result_min,result_lower,result_upper):
     conditioning = ['low D/P', 'middle D/P', 'high D/P', 'unconditional']
-    min_entropy_implied = np.array([2.18, 2.73, 4.80, 2.40])
-    empirical_average = np.array([5.12, 3.54, 13.90, 7.54])
+    min_entropy_implied = np.array([result_min['moment_bound_cond'][0]*400, result_min['moment_bound_cond'][1]*400, result_min['moment_bound_cond'][2]*400, result_min['moment_bound']*400])
+    empirical_average = np.array([result_min['moment_cond'][0]*400, result_min['moment_cond'][1]*400, result_min['moment_cond'][2]*400, result_min['moment']*400])
 
     # Each number is repeated once in order to form a desirable shape of boxes
-    low_bound_20 = np.array([1.54, 1.54, 2.96, 2.96]) 
-    middle_bound_20 = np.array([2.54, 2.54, 2.93, 2.93])
-    high_bound_20 = np.array([4.54,4.54,5.10,5.10])
-    unconditional_bound_20 = np.array([1.72, 1.72, 3.13, 3.13])
+    low_bound_20 = np.array([result_lower['moment_bound_cond'][0]*400, result_lower['moment_bound_cond'][0]*400, result_upper['moment_bound_cond'][0]*400, result_upper['moment_bound_cond'][0]*400]) 
+    middle_bound_20 = np.array([result_lower['moment_bound_cond'][1]*400, result_lower['moment_bound_cond'][1]*400, result_upper['moment_bound_cond'][1]*400, result_upper['moment_bound_cond'][1]*400])
+    high_bound_20 = np.array([result_lower['moment_bound_cond'][2]*400,result_lower['moment_bound_cond'][2]*400,result_upper['moment_bound_cond'][2]*400,result_upper['moment_bound_cond'][2]*400])
+    unconditional_bound_20 = np.array([result_lower['moment_bound']*400, result_lower['moment_bound']*400, result_upper['moment_bound']*400, result_upper['moment_bound']*400])
 
     fig, ax = plt.subplots()
     bplot = ax.boxplot(np.vstack((low_bound_20, middle_bound_20, high_bound_20, unconditional_bound_20)).T,
@@ -179,7 +179,62 @@ def box_chart():
     splot = ax.scatter(x = np.arange(1, 5), y = empirical_average, c = 'black')
 
     ax.axvline(x = 3.5, color = 'black', linestyle = '--', linewidth = 1)
-
+    
+    ax.set_ylim(0.,14.5)
+    
     plt.show()
     
-    
+
+# ξs that correspond to 0%-25% higher min RE (g(X)=log Rw)
+ξs_lower = np.array([100,
+                     0.660308837890625,
+                     0.465484619140625,
+                     0.3792381286621094,
+                     0.3277549743652344,
+                     0.2925539016723633,
+                     0.2665672302246094,
+                     0.24636244773864746,
+                     0.23006033897399902,
+                     0.21654391288757324,
+                     0.2051076889038086,
+                     0.19526314735412598,
+                     0.18666887283325195,
+                     0.1790839433670044,
+                     0.17232286930084229,
+                     0.16624605655670166,
+                     0.16074597835540771,
+                     0.15573608875274658,
+                     0.15114754438400269,
+                     0.14692401885986328,
+                     0.14301961660385132,
+                     0.13939595222473145,
+                     0.13602107763290405,
+                     0.1328662633895874,
+                     0.12991082668304443,
+                     0.12713348865509033])
+ξs_upper = np.array([100,
+                     0.6666183471679688,
+                     0.4721088409423828,
+                     0.3856649398803711,
+                     0.3341245651245117,
+                     0.2989816665649414,
+                     0.2729339599609375,
+                     0.25270676612854004,
+                     0.2364063262939453,
+                     0.22286725044250488,
+                     0.21141958236694336,
+                     0.20155417919158936,
+                     0.19294500350952148,
+                     0.18534398078918457,
+                     0.17857110500335693,
+                     0.17248201370239258,
+                     0.16696691513061523,
+                     0.1619412899017334,
+                     0.15733754634857178,
+                     0.15309679508209229,
+                     0.14917802810668945,
+                     0.14554333686828613,
+                     0.14215445518493652,
+                     0.1389867067337036,
+                     0.13601797819137573,
+                     0.1332303285598755])
