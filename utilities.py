@@ -1,18 +1,27 @@
-'''
-Here we set g(X) = 1./exp(log return)
-'''
-# Load packages
+##################################################
+##  Description:
+##  This file aims to provide the model solution for the 
+##  example in Chen, Hansen and Hansen (working paper). Advanced users
+##  can modify the Python code to accomodate other examples.
+##################################################
+##  License_info:
+##  2020 MFR project
+##################################################
+##  Any questions/suggestions, please contact
+##  Han Xu:  hanxuh@uchicago.edu
+##################################################
+
 import numpy as np
 import pandas as pd
 from numba import jit
 from scipy.optimize import minimize
 
-    
+
+'''
+Objective function and its gradient. Use numba.jit to boost computational performance.
+'''
 @jit
-def _objective_numba(f,g,pd_lag_indicator,pd_indicator_float,state,n_f,e,ξ,λ):
-    """
-    Objective function of the minimization problem. Use numba.jit to boost computational performance.
-    """        
+def _objective_numba(f,g,pd_lag_indicator,pd_indicator_float,state,n_f,e,ξ,λ):     
     selector = pd_lag_indicator[:,state-1]
     term_1 = -g[selector]/ξ
     term_2 = f[:,(state-1)*n_f:state*n_f][selector]@λ
@@ -20,14 +29,11 @@ def _objective_numba(f,g,pd_lag_indicator,pd_indicator_float,state,n_f,e,ξ,λ):
     x = term_1 + term_2 + term_3
     # Use "max trick" to improve accuracy
     a = x.max()
-    # log_E_exp(x) + log(N)
-    return np.log(np.sum(np.exp(x-a))) + a    
+    # log_E_exp(x)
+    return np.log(np.mean(np.exp(x-a))) + a    
 
 @jit
-def _objective_gradient_numba(f,g,pd_lag_indicator,pd_indicator_float,state,n_f,e,ξ,λ):
-    """
-    Gradient of the objective function. Use numba.jit to boost computational performance.
-    """         
+def _objective_gradient_numba(f,g,pd_lag_indicator,pd_indicator_float,state,n_f,e,ξ,λ):      
     selector = pd_lag_indicator[:,state-1]
     temp1 = -g[selector]/ξ + f[:,(state-1)*n_f:state*n_f][selector]@λ + np.log(pd_indicator_float[selector]@e)
     temp2 = f[:,(state-1)*n_f:state*n_f][selector]*(np.exp(temp1.reshape((len(temp1),1)))/np.mean(np.exp(temp1)))
@@ -36,6 +42,10 @@ def _objective_gradient_numba(f,g,pd_lag_indicator,pd_indicator_float,state,n_f,
         temp3[i] = np.mean(temp2[:,i])
     return temp3
 
+
+'''
+Solver for the intertemporal divergence problem. Here we use relative entropy as the measure of divergence.
+'''
 class InterDivConstraint:
     def __init__(self,tol=1e-8,max_iter=1000):
         """
@@ -60,9 +70,10 @@ class InterDivConstraint:
         self.pd_lag_indicator = pd_lag_indicator[:-1]
         X = np.array(data[['Rf','Rm-Rf','SMB','HML']])[:-1]
         self.f = np.hstack((X * self.pd_lag_indicator[:,:1],X * self.pd_lag_indicator[:,1:2],X * self.pd_lag_indicator[:,2:3]))
-        self.g = 1./np.exp(np.array(data['log.RW'])[:-1])        # Here we use the reciprocal of gross returns
+        self.log_Rw = np.array(data['log.RW'])[:-1] 
         
-        # Placeholder for state, e, ϵ
+        # Placeholder for g,state, e, ϵ
+        self.g = None
         self.state = None
         self.e = None
         self.ϵ = None
@@ -75,10 +86,6 @@ class InterDivConstraint:
         self.tol = tol
         self.max_iter = max_iter
         
-    
-    '''
-    Methods to related to the minimization problem in section 8.
-    '''
     def _objective(self,λ):
         """
         Objective function of the minimization problem.
@@ -104,34 +111,38 @@ class InterDivConstraint:
         for method in ['L-BFGS-B','BFGS','CG']:
             model = minimize(self._objective, 
                              np.ones(self.n_f), 
-                             method=method,
+                             method = method,
                              jac = self._objective_gradient,
-                             tol=self.tol,
-                             options={'maxiter': self.max_iter})
+                             tol = self.tol,
+                             options = {'maxiter': self.max_iter})
             if model.success:
                 break
         if model.success == False:
-            print("---Warning: the convex solver fails when ξ == %s---" % self.ξ)
+            print("---Warning: the convex solver fails when ξ = %s, tolerance = %s--- " % (self.ξ,self.tol))
             print(model.message)
             
         # Calculate v and λ (here λ is of dimension self.n_f)
-        v = np.exp(model.fun)/np.sum(self.pd_lag_indicator[:,self.state-1])
+        v = np.exp(model.fun)
         λ = model.x
         return v,λ
     
-
+    
     def iterate(self,ξ,lower=True):
         """
         Iterate to get staitionary e and ϵ (eigenvector and eigenvalue) for the minimization problem. Here we fix ξ.
         Return a dictionary of variables that are of our interest. 
         """
+        # Check if self.g is defined or not
+        if self.g is None:
+            raise Exception("Sorry, please define self.g first!")            
+        
         # Fix ξ
         self.ξ = ξ
         self.lower = lower
         
-        # initial error
+        # Initial error
         error = 1.
-        # count times
+        # Count iteration times
         count = 0
 
         while error > self.tol:
