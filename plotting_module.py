@@ -1,3 +1,4 @@
+import matplotlib.pyplot as plt
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 from utilities import *
@@ -15,17 +16,7 @@ def entropy_moment_bounds():
     
     # Grid for ξ
     ξ_grid = np.arange(.01,1.01,.01)
-    results_lower = []
-    results_upper = []
 
-    μs = np.zeros_like(ξ_grid)
-    REs = np.zeros_like(ξ_grid)
-    bounds = np.zeros_like(ξ_grid)
-    bounds_cond_1 = np.zeros_like(ξ_grid)
-    bounds_cond_2 = np.zeros_like(ξ_grid)
-    bounds_cond_3 = np.zeros_like(ξ_grid)
-    ϵs = np.zeros_like(ξ_grid)
-    
     results_lower = [None]*len(ξ_grid)
     results_upper = [None]*len(ξ_grid)
     
@@ -36,8 +27,8 @@ def entropy_moment_bounds():
         temp = solver.iterate(ξ,lower=False)
         results_upper[i] = temp
 
-    REs = np.array([result['RE'] for result in results_lower])
-    REs_cond = np.array([result['RE_cond'] for result in results_lower])
+    REs_lower = np.array([result['RE'] for result in results_lower])
+    REs_upper = np.array([result['RE'] for result in results_upper])
     moment_bounds_cond_lower = np.array([result['moment_bound_cond'] for result in results_lower])
     moment_bounds_cond_upper = np.array([result['moment_bound_cond'] for result in results_upper])
     moment_bounds_lower = np.array([result['moment_bound'] for result in results_lower])
@@ -48,12 +39,17 @@ def entropy_moment_bounds():
     # Plots for RE and E[Mg(X)]
     fig = make_subplots(rows=1, cols=2)
     fig.add_trace(
-        go.Scatter(x=ξ_grid, y=REs, name='E[MlogM]', line=dict(color='blue')),
+        go.Scatter(x=ξ_grid, y=REs_lower, name='E[MlogM] for lower bound problem', line=dict(color='blue')),
         row=1, col=1
     )
 
     fig.add_trace(
-        go.Scatter(x=ξ_grid, y=np.ones_like(ξ_grid)*REs[-1]*1.1, name='1.1x minimum RE', line=dict(color='black',dash='dash')),
+        go.Scatter(x=ξ_grid, y=REs_upper, name='E[MlogM] for upper bound problem', line=dict(color='purple')),
+        row=1, col=1
+    )
+    
+    fig.add_trace(
+        go.Scatter(x=ξ_grid, y=np.ones_like(ξ_grid)*REs_lower[-1]*1.1, name='1.1x minimum RE', line=dict(color='black',dash='dash')),
         row=1, col=1
     )
 
@@ -69,7 +65,7 @@ def entropy_moment_bounds():
     )
 
     fig.add_trace(
-        go.Scatter(x=ξ_grid, y=moment, name='E[g(X)]',line=dict(dash='dash')),
+        go.Scatter(x=ξ_grid, y=moment, name='E[g(X)]',line=dict(dash='dash',color='orange')),
         row=1, col=2
     )
 
@@ -85,7 +81,7 @@ def entropy_moment_bounds():
     )
 
     fig.add_trace(
-        go.Scatter(x=ξ_grid, y=moment_cond[:,0], name='E[g(X)|state 1]', visible=False, line=dict(dash='dash')),
+        go.Scatter(x=ξ_grid, y=moment_cond[:,0], name='E[g(X)|state 1]', visible=False, line=dict(dash='dash',color='orange')),
         row=1, col=2
     )
 
@@ -100,7 +96,7 @@ def entropy_moment_bounds():
     )
 
     fig.add_trace(
-        go.Scatter(x=ξ_grid, y=moment_cond[:,1], name='E[g(X)|state 2]', visible=False, line=dict(dash='dash')),
+        go.Scatter(x=ξ_grid, y=moment_cond[:,1], name='E[g(X)|state 2]', visible=False, line=dict(dash='dash',color='orange')),
         row=1, col=2
     )
 
@@ -116,7 +112,7 @@ def entropy_moment_bounds():
     )
 
     fig.add_trace(
-        go.Scatter(x=ξ_grid, y=moment_cond[:,2], name='E[g(X)|state 3]', visible=False, line=dict(dash='dash')),
+        go.Scatter(x=ξ_grid, y=moment_cond[:,2], name='E[g(X)|state 3]', visible=False, line=dict(dash='dash',color='orange')),
         row=1, col=2
     )
 
@@ -142,20 +138,48 @@ def entropy_moment_bounds():
                 buttons=list([
                     dict(label="Unconditional",
                          method="update",
-                         args=[{"visible": [True]*5 + [False]*15 }]),
+                         args=[{"visible": [True]*6 + [False]*15 }]),
                     dict(label="State 1",
                          method="update",
-                         args=[{"visible": [True]*2 + [False]*3 + [True]*3 + [False]*6}]),
+                         args=[{"visible": [True]*3 + [False]*3 + [True]*3 + [False]*6}]),
                     dict(label="State 2",
                          method="update",
-                         args=[{"visible": [True]*2 + [False]*6 + [True]*3 + [False]*3}]),
+                         args=[{"visible": [True]*3 + [False]*6 + [True]*3 + [False]*3}]),
                     dict(label="State 3",
                          method="update",
-                         args=[{"visible": [True]*2 + [False]*9 + [True]*3}]),
+                         args=[{"visible": [True]*3 + [False]*9 + [True]*3}]),
                 ]),
             )
         ])
 
 
     fig.show()
+    
+def box_chart():
+    conditioning = ['low D/P', 'middle D/P', 'high D/P', 'unconditional']
+    min_entropy_implied = np.array([2.18, 2.73, 4.80, 2.40])
+    empirical_average = np.array([5.12, 3.54, 13.90, 7.54])
+
+    # Each number is repeated once in order to form a desirable shape of boxes
+    low_bound_20 = np.array([1.54, 1.54, 2.96, 2.96]) 
+    middle_bound_20 = np.array([2.54, 2.54, 2.93, 2.93])
+    high_bound_20 = np.array([4.54,4.54,5.10,5.10])
+    unconditional_bound_20 = np.array([1.72, 1.72, 3.13, 3.13])
+
+    fig, ax = plt.subplots()
+    bplot = ax.boxplot(np.vstack((low_bound_20, middle_bound_20, high_bound_20, unconditional_bound_20)).T,
+                       usermedians = min_entropy_implied, #override the automatically calculated median
+                       labels = conditioning, widths = 0.4, 
+                       medianprops = dict(linestyle='-.', linewidth = 0, color = 'black'),
+                       patch_artist = True)
+
+    for box in bplot['boxes']:
+        box.set(facecolor = 'salmon')
+
+    splot = ax.scatter(x = np.arange(1, 5), y = empirical_average, c = 'black')
+
+    ax.axvline(x = 3.5, color = 'black', linestyle = '--', linewidth = 1)
+
+    plt.show()
+    
     

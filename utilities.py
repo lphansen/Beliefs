@@ -68,8 +68,8 @@ class InterDivConstraint:
         
         # Drop last row since we do not have tomorrow's pd ratio at that point
         self.pd_lag_indicator = pd_lag_indicator[:-1]
-        X = np.array(data[['Rf','Rm-Rf','SMB','HML']])[:-1]
-        self.f = np.hstack((X * self.pd_lag_indicator[:,:1],X * self.pd_lag_indicator[:,1:2],X * self.pd_lag_indicator[:,2:3]))
+        self.X = np.array(data[['Rf','Rm-Rf','SMB','HML']])[:-1]
+        self.f = np.hstack((self.X * self.pd_lag_indicator[:,:1],self.X * self.pd_lag_indicator[:,1:2],self.X * self.pd_lag_indicator[:,2:3]))
         self.log_Rw = np.array(data['log.RW'])[:-1] 
         
         # Placeholder for g,state, e, ϵ
@@ -249,3 +249,45 @@ class InterDivConstraint:
         
         return result
     
+    
+    def find_ξ(self,x_min_RE,lower,tol=1e-7,max_iter=100):
+        """
+        This function will use bisection method to find the ξ that corresponds to x times the minimal RE.
+        """
+        # Get minimal RE
+        result = self.iterate(100,lower)
+        min_RE = result['RE']
+        
+        # Start iteration
+        count = 0
+        for i in range(max_iter):
+            # Get RE at current choice of ξ
+            if i == 0:
+                ξ = 1.
+                # Set lower/upper bounds for ξ
+                lower_bound = 0.
+                upper_bound = 100.
+                
+            result = self.iterate(ξ,lower)
+            RE = result['RE']
+            
+            # Compare to the level we want
+            error = RE/min_RE-x_min_RE
+            if np.abs(error)<tol:
+                break
+            else:
+                if error < 0.:
+                    upper_bound = ξ
+                    ξ = (lower_bound + ξ)/2.
+                else:
+                    lower_bound = ξ
+                    ξ = (ξ + upper_bound)/2.
+            
+            count += 1
+            if count == max_iter:
+                print('Maximal iterations reached. Error = %s' % (RE/min_RE-x_min_RE))
+        
+        return ξ
+        
+        
+        
