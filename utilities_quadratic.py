@@ -77,9 +77,10 @@ class InterDivConstraint:
     
     def _min_objective(self):
         """
-        Use scipy.minimize (L-BFGS-B, BFGS or CG) to solve the minimization problem.
+        Use scipy.minimize (L-BFGS-B, BFGS, CG or SLSQP) to solve the minimization problem.
         """
-        for method in ['L-BFGS-B','BFGS','CG']:
+        for method in ['L-BFGS-B','BFGS','CG','SLSQP']:
+#         for method in ['SLSQP']:
             model = minimize(self._objective, 
                              np.ones(self.n_f+1), 
                              method = method,
@@ -88,7 +89,7 @@ class InterDivConstraint:
             if model.success:
                 break
         if model.success == False:
-            print("---Warning: the convex solver fails when ξ = %s, tolerance = %s--- " % (self.ξ,self.tol))
+            print("---Warning: desired error not achieved when ξ = %s, tolerance = %s--- " % (self.ξ,self.tol))
             print(model.message)
             
         # Calculate v+μ, λ_1 and λ_2 (here λ_1 is of dimension self.n_f)
@@ -133,7 +134,6 @@ class InterDivConstraint:
             self.v = v_μ - v_μ[0]
             error = np.max(np.abs(self.v - v_old))
             count += 1
-        print("Total: %s iterations" % (count))
         # Calculate M and E[M|state k]
         if self.lower:
             term_1 = self.g
@@ -172,7 +172,18 @@ class InterDivConstraint:
         B[-1] = 1.
         π = np.linalg.solve(A, B)
         
-        # Conditional moment bounds
+        # Conditional/unconditional quadratic divergence
+        QD_cond = []
+        for i in np.arange(1,self.n_states+1,1):
+            temp = np.mean(M[self.pd_lag_indicator[:,i-1]]**2 - M[self.pd_lag_indicator[:,i-1]]) * 0.5
+            QD_cond.append(temp)
+        QD_cond = np.array(QD_cond)
+        QD = QD_cond @ π_tilde        
+        
+        # Calculate unconditional moment bound using μ
+        moment_bound_check = self.μ - self.ξ*QD   
+        
+        # Conditional/unconditional moment bounds
         moment_bound_cond = []
         for i in np.arange(1,self.n_states+1,1):
             temp = np.mean(M[self.pd_lag_indicator[:,i-1]]*self.g[self.pd_lag_indicator[:,i-1]])
@@ -199,6 +210,9 @@ class InterDivConstraint:
                   'π':π,
                   'P_tilde':P_tilde,
                   'π_tilde':π_tilde,
+                  'QD_cond':QD_cond,
+                  'QD':QD,
+                  'moment_bound_check':moment_bound_check,
                   'moment_bound':moment_bound,
                   'moment_bound_cond':moment_bound_cond,
                   'moment_cond':moment_cond,
@@ -208,29 +222,29 @@ class InterDivConstraint:
         return result
     
     
-    def find_ξ(self,x_min_RE,lower,tol=1e-7,max_iter=100):
+    def find_ξ(self,x_min_QD,lower,tol=1e-7,max_iter=100):
         """
-        This function will use bisection method to find the ξ that corresponds to x times the minimal RE.
+        This function will use bisection method to find the ξ that corresponds to x times the minimal QD.
         """
-        # Get minimal RE
-        result = self.iterate(100,lower)
-        min_RE = result['RE']
+        # Get minimal QD
+        result = self.iterate(10,lower)
+        min_QD = result['QD']
         
         # Start iteration
         count = 0
         for i in range(max_iter):
-            # Get RE at current choice of ξ
+            # Get QD at current choice of ξ
             if i == 0:
                 ξ = 1.
                 # Set lower/upper bounds for ξ
                 lower_bound = 0.
-                upper_bound = 100.
+                upper_bound = 10.
                 
             result = self.iterate(ξ,lower)
-            RE = result['RE']
+            QD = result['QD']
             
             # Compare to the level we want
-            error = RE/min_RE-x_min_RE
+            error = QD/min_QD-x_min_QD
             if np.abs(error)<tol:
                 break
             else:
@@ -243,7 +257,7 @@ class InterDivConstraint:
             
             count += 1
             if count == max_iter:
-                print('Maximal iterations reached. Error = %s' % (RE/min_RE-x_min_RE))
+                print('Maximal iterations reached. Error = %s' % (QD/min_QD-x_min_QD))
         
         return ξ
         
