@@ -13,9 +13,11 @@ def _objective_numba(f,g,pd_lag_indicator,pd_indicator_float,state,n_f,v,ξ,λ):
     λ_1 = λ[:-1]
     λ_2 = λ[-1]
     selector = pd_lag_indicator[:,state-1]
-    term_1 = 0.5
-    term_2 = (g[selector] + pd_indicator_float[selector]@v + f[:,(state-1)*n_f:state*n_f][selector]@λ_1 + λ_2) / (-ξ)
-    x = term_1 + term_2
+    term_1 = g[selector]
+    term_2 = pd_indicator_float[selector]@v
+    term_3 = f[:,(state-1)*n_f:state*n_f][selector]@λ_1
+    term_4 = λ_2
+    x = (term_1+term_2+term_3+term_4)/(-ξ) + 0.5
     x[x<0] = 0
     result = np.mean(x**2)*(ξ/2.) + λ_2
     return result
@@ -131,16 +133,17 @@ class InterDivConstraint:
             self.v = v_μ - v_μ[0]
             error = np.max(np.abs(self.v - v_old))
             count += 1
-            print(self.v)
-            
+        print("Total: %s iterations" % (count))
         # Calculate M and E[M|state k]
         if self.lower:
-            M = 0.5 - 1./self.ξ*(self.g + self.pd_indicator@self.v - self.pd_lag_indicator@self.v - self.μ + self.f@λ_1 + self.pd_lag_indicator@λ_2)
-            print(self.g + self.pd_indicator@self.v - self.pd_lag_indicator@self.v - self.μ + self.f@λ_1 + self.pd_lag_indicator@λ_2)
-            M[M<0]=0
+            term_1 = self.g
         else:
-            M = 0.5 - 1./self.ξ*(-self.g + self.pd_indicator@self.v - self.pd_lag_indicator@self.v - self.μ + self.f@λ_1 + self.pd_lag_indicator@λ_2)
-            M[M<0]=0
+            term_1 = -self.g
+        term_2 = self.pd_indicator@self.v
+        term_3 = self.f@λ_1
+        term_4 = self.pd_lag_indicator@λ_2
+        M = -1./self.ξ*(term_1+term_2+term_3+term_4) + 0.5
+        M[M<0]=0
         E_M_cond = []
         for i in np.arange(1,self.n_states+1,1):
             temp = np.mean(M[self.pd_lag_indicator[:,i-1]])
@@ -169,16 +172,6 @@ class InterDivConstraint:
         B[-1] = 1.
         π = np.linalg.solve(A, B)
         
-        # Calculate conditional/unconditional 
-        RE_cond = []
-        for i in np.arange(1,self.n_states+1,1):
-            temp = np.mean(M[self.pd_lag_indicator[:,i-1]]*np.log(M[self.pd_lag_indicator[:,i-1]]))
-            RE_cond.append(temp)
-        RE_cond = np.array(RE_cond)
-        RE = RE_cond @ π_tilde
-        
-        # Calculate μ and moment bound
-        moment_bound_check = self.μ - self.ξ*RE
         # Conditional moment bounds
         moment_bound_cond = []
         for i in np.arange(1,self.n_states+1,1):
@@ -201,15 +194,12 @@ class InterDivConstraint:
                   'ξ':self.ξ,
                   'μ':self.μ,
                   'v':self.v,
-                  'RE_cond':RE_cond,
-                  'RE':RE,
                   'E_M_cond':E_M_cond,
                   'P':P,
                   'π':π,
                   'P_tilde':P_tilde,
                   'π_tilde':π_tilde,
                   'moment_bound':moment_bound,
-                  'moment_bound_check':moment_bound_check,
                   'moment_bound_cond':moment_bound_cond,
                   'moment_cond':moment_cond,
                   'moment':moment,
