@@ -4,30 +4,21 @@ from numba import jit
 from scipy.optimize import minimize
 
 
-'''
-Objective function and its gradient. Use numba.jit to boost computational performance.
-'''
-@jit
-def _objective_numba(f,g,pd_lag_indicator,pd_indicator_float,state,n_f,e,ξ,λ):     
-    selector = pd_lag_indicator[:,state-1]
-    term_1 = -g[selector]/ξ
-    term_2 = f[:,(state-1)*n_f:state*n_f][selector]@λ
-    term_3 = np.log(pd_indicator_float[selector]@e)
-    x = term_1 + term_2 + term_3
-    # Use "max trick" to improve accuracy
-    a = x.max()
-    # log_E_exp(x)
-    return np.log(np.mean(np.exp(x-a))) + a    
 
 @jit
-def _objective_gradient_numba(f,g,pd_lag_indicator,pd_indicator_float,state,n_f,e,ξ,λ):      
+def _objective_numba(f,g,pd_lag_indicator,pd_indicator_float,state,n_f,v,ξ,λ):
+    """
+    Use -(μ + v_0) as the objective function. Use numba.jit to boost computational performance.
+    """
+    λ_1 = λ[:-1]
+    λ_2 = λ[-1]
     selector = pd_lag_indicator[:,state-1]
-    temp1 = -g[selector]/ξ + f[:,(state-1)*n_f:state*n_f][selector]@λ + np.log(pd_indicator_float[selector]@e)
-    temp2 = f[:,(state-1)*n_f:state*n_f][selector]*(np.exp(temp1.reshape((len(temp1),1)))/np.mean(np.exp(temp1)))
-    temp3 = np.empty(temp2.shape[1])
-    for i in range(temp2.shape[1]):
-        temp3[i] = np.mean(temp2[:,i])
-    return temp3
+    term_1 = 0.5
+    term_2 = (g[selector] + pd_indicator_float[selector]@v + f[:,(state-1)*n_f:state*n_f][selector]@λ_1 + λ_2) / (-ξ)
+    x = term_1 + term_2
+    x[x<0] = 0
+    result = np.mean(x**2)*(ξ/2.) + λ_2
+    return result
 
 
 '''
@@ -59,11 +50,11 @@ class InterDivConstraint:
         self.f = np.hstack((self.X * self.pd_lag_indicator[:,:1],self.X * self.pd_lag_indicator[:,1:2],self.X * self.pd_lag_indicator[:,2:3]))
         self.log_Rw = np.array(data['log.RW'])[:-1] 
         
-        # Placeholder for g,state, e, ϵ
+        # Placeholder for g, state, v, μ
         self.g = None
         self.state = None
-        self.e = None
-        self.ϵ = None
+        self.v = None
+        self.μ = None
         
         # Specify dimensions
         self.n_f = 4
@@ -78,18 +69,9 @@ class InterDivConstraint:
         Objective function of the minimization problem.
         """
         if self.lower:
-            return _objective_numba(self.f,self.g,self.pd_lag_indicator,self.pd_indicator_float,self.state,self.n_f,self.e,self.ξ,λ)
+            return _objective_numba(self.f,self.g,self.pd_lag_indicator,self.pd_indicator_float,self.state,self.n_f,self.v,self.ξ,λ)
         else:
-            return _objective_numba(self.f,-self.g,self.pd_lag_indicator,self.pd_indicator_float,self.state,self.n_f,self.e,self.ξ,λ)            
-    
-    def _objective_gradient(self,λ):
-        """
-        Gradient of the objective function.     
-        """
-        if self.lower:
-            return _objective_gradient_numba(self.f,self.g,self.pd_lag_indicator,self.pd_indicator_float,self.state,self.n_f,self.e,self.ξ,λ)
-        else:
-            return _objective_gradient_numba(self.f,-self.g,self.pd_lag_indicator,self.pd_indicator_float,self.state,self.n_f,self.e,self.ξ,λ)            
+            return _objective_numba(self.f,-self.g,self.pd_lag_indicator,self.pd_indicator_float,self.state,self.n_f,self.v,self.ξ,λ)            
     
     def _min_objective(self):
         """
@@ -97,9 +79,8 @@ class InterDivConstraint:
         """
         for method in ['L-BFGS-B','BFGS','CG']:
             model = minimize(self._objective, 
-                             np.ones(self.n_f), 
+                             np.ones(self.n_f+1), 
                              method = method,
-                             jac = self._objective_gradient,
                              tol = self.tol,
                              options = {'maxiter': self.max_iter})
             if model.success:
@@ -108,11 +89,11 @@ class InterDivConstraint:
             print("---Warning: the convex solver fails when ξ = %s, tolerance = %s--- " % (self.ξ,self.tol))
             print(model.message)
             
-        # Calculate v and λ (here λ is of dimension self.n_f)
-        v = np.exp(model.fun)
-        λ = model.x
-        return v,λ
-    
+        # Calculate v+μ, λ_1 and λ_2 (here λ_1 is of dimension self.n_f)
+        v_μ = - model.fun
+        λ_1 = model.x[:-1]
+        λ_2 = model.x[-1]
+        return v_μ,λ_1,λ_2
     
     def iterate(self,ξ,lower=True):
         """
@@ -134,27 +115,32 @@ class InterDivConstraint:
 
         while error > self.tol:
             if count == 0:
-                # initial guess for e
-                self.e = np.ones(self.n_states)
-                # placeholder for v
-                v = np.zeros(self.n_states)   
-                # placeholder for λ
-                λ = np.zeros(self.n_states*self.n_f)
+                # Initial guess for v
+                self.v = np.zeros(self.n_states)
+                # Placeholder for v+μ
+                v_μ = np.zeros(self.n_states)   
+                # Placeholder for λ_1, λ_2
+                λ_1 = np.zeros(self.n_states*self.n_f)
+                λ_2 = np.zeros(self.n_states)
             for k in np.arange(1,self.n_states+1,1):
                 self.state = k
-                v[self.state-1],λ[(self.state-1)*self.n_f:self.state*self.n_f] = self._min_objective()
-            # update e and ϵ
-            e_old = self.e
-            self.ϵ = v[0]
-            self.e = v/v[0]
-            error = np.max(np.abs(self.e - e_old))
+                v_μ[self.state-1],λ_1[(self.state-1)*self.n_f:self.state*self.n_f],λ_2[self.state-1] = self._min_objective()
+            # Update v and μ, fix v[0] = 0
+            v_old = self.v
+            self.μ = v_μ[0]
+            self.v = v_μ - v_μ[0]
+            error = np.max(np.abs(self.v - v_old))
             count += 1
-        
+            print(self.v)
+            
         # Calculate M and E[M|state k]
         if self.lower:
-            M = 1./self.ϵ * np.exp(-self.g/self.ξ+self.f@λ) * (self.pd_indicator@self.e) / (self.pd_lag_indicator@self.e)
+            M = 0.5 - 1./self.ξ*(self.g + self.pd_indicator@self.v - self.pd_lag_indicator@self.v - self.μ + self.f@λ_1 + self.pd_lag_indicator@λ_2)
+            print(self.g + self.pd_indicator@self.v - self.pd_lag_indicator@self.v - self.μ + self.f@λ_1 + self.pd_lag_indicator@λ_2)
+            M[M<0]=0
         else:
-            M = 1./self.ϵ * np.exp(self.g/self.ξ+self.f@λ) * (self.pd_indicator@self.e) / (self.pd_lag_indicator@self.e)
+            M = 0.5 - 1./self.ξ*(-self.g + self.pd_indicator@self.v - self.pd_lag_indicator@self.v - self.μ + self.f@λ_1 + self.pd_lag_indicator@λ_2)
+            M[M<0]=0
         E_M_cond = []
         for i in np.arange(1,self.n_states+1,1):
             temp = np.mean(M[self.pd_lag_indicator[:,i-1]])
@@ -192,8 +178,7 @@ class InterDivConstraint:
         RE = RE_cond @ π_tilde
         
         # Calculate μ and moment bound
-        μ = - self.ξ * np.log(self.ϵ)
-        moment_bound_check = μ - self.ξ*RE
+        moment_bound_check = self.μ - self.ξ*RE
         # Conditional moment bounds
         moment_bound_cond = []
         for i in np.arange(1,self.n_states+1,1):
@@ -210,16 +195,12 @@ class InterDivConstraint:
             moment_cond.append(temp)  
         moment = np.mean(self.g)
         
-        # Calculate v
-        v_0 = -self.ξ * np.log(self.e)
-        
-        result = {'ϵ':self.ϵ,
-                  'e':self.e,
-                  'λ':λ,
+        result = {'λ_1':λ_1,
+                  'λ_2':λ_2,
                   'count':count,
                   'ξ':self.ξ,
-                  'μ':μ,
-                  'v_0':v_0,
+                  'μ':self.μ,
+                  'v':self.v,
                   'RE_cond':RE_cond,
                   'RE':RE,
                   'E_M_cond':E_M_cond,
