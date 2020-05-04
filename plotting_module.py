@@ -155,7 +155,7 @@ def entropy_moment_bounds():
 
     fig.show()
     
-def box_chart(result_min,result_lower,result_upper):
+def box_chart(result_min,result_lower,result_upper,save=False,dpi=1200):
     conditioning = ['low D/P', 'middle D/P', 'high D/P', 'unconditional']
     min_entropy_implied = np.array([result_min['moment_bound_cond'][0]*400, result_min['moment_bound_cond'][1]*400, result_min['moment_bound_cond'][2]*400, result_min['moment_bound']*400])
     empirical_average = np.array([result_min['moment_cond'][0]*400, result_min['moment_cond'][1]*400, result_min['moment_cond'][2]*400, result_min['moment']*400])
@@ -184,6 +184,8 @@ def box_chart(result_min,result_lower,result_upper):
     
     plt.show()
     
+    if save:
+        fig.savefig("box_20%.png",dpi)
 
 # ξs that correspond to 0%-25% higher min RE (g(X)=log Rw)
 ξs_lower = np.array([100,

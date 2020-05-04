@@ -134,7 +134,7 @@ class InterDivConstraint:
             self.v = v_μ - v_μ[0]
             error = np.max(np.abs(self.v - v_old))
             count += 1
-        # Calculate M and E[M|state k]
+        # Calculate N and E[N|state k]
         if self.lower:
             term_1 = self.g
         else:
@@ -142,19 +142,19 @@ class InterDivConstraint:
         term_2 = self.pd_indicator@self.v
         term_3 = self.f@λ_1
         term_4 = self.pd_lag_indicator@λ_2
-        M = -1./self.ξ*(term_1+term_2+term_3+term_4) + 0.5
-        M[M<0]=0
-        E_M_cond = []
+        N = -1./self.ξ*(term_1+term_2+term_3+term_4) + 0.5
+        N[N<0]=0
+        E_N_cond = []
         for i in np.arange(1,self.n_states+1,1):
-            temp = np.mean(M[self.pd_lag_indicator[:,i-1]])
-            E_M_cond.append(temp)
-        E_M_cond = np.array(E_M_cond)
+            temp = np.mean(N[self.pd_lag_indicator[:,i-1]])
+            E_N_cond.append(temp)
+        E_N_cond = np.array(E_N_cond)
         
         # Calculate transition matrix and staionary distribution under distorted probability
         P_tilde = np.zeros((self.n_states,self.n_states))
         for i in np.arange(1,self.n_states+1,1):
             for j in np.arange(1,self.n_states+1,1):
-                P_tilde[i-1,j-1] = np.mean(M[self.pd_lag_indicator[:,i-1]]*self.pd_indicator[self.pd_lag_indicator[:,i-1]][:,j-1]) 
+                P_tilde[i-1,j-1] = np.mean(N[self.pd_lag_indicator[:,i-1]]*self.pd_indicator[self.pd_lag_indicator[:,i-1]][:,j-1]) 
         A = P_tilde.T - np.eye(self.n_states)
         A[-1] = np.ones(self.n_states)
         B = np.zeros(self.n_states)
@@ -175,7 +175,7 @@ class InterDivConstraint:
         # Conditional/unconditional quadratic divergence
         QD_cond = []
         for i in np.arange(1,self.n_states+1,1):
-            temp = np.mean(M[self.pd_lag_indicator[:,i-1]]**2 - M[self.pd_lag_indicator[:,i-1]]) * 0.5
+            temp = np.mean(N[self.pd_lag_indicator[:,i-1]]**2 - N[self.pd_lag_indicator[:,i-1]]) * 0.5
             QD_cond.append(temp)
         QD_cond = np.array(QD_cond)
         QD = QD_cond @ π_tilde        
@@ -186,7 +186,7 @@ class InterDivConstraint:
         # Conditional/unconditional moment bounds
         moment_bound_cond = []
         for i in np.arange(1,self.n_states+1,1):
-            temp = np.mean(M[self.pd_lag_indicator[:,i-1]]*self.g[self.pd_lag_indicator[:,i-1]])
+            temp = np.mean(N[self.pd_lag_indicator[:,i-1]]*self.g[self.pd_lag_indicator[:,i-1]])
             moment_bound_cond.append(temp)
         moment_bound_cond = np.array(moment_bound_cond)
         moment_bound = moment_bound_cond @ π_tilde
@@ -205,7 +205,7 @@ class InterDivConstraint:
                   'ξ':self.ξ,
                   'μ':self.μ,
                   'v':self.v,
-                  'E_M_cond':E_M_cond,
+                  'E_N_cond':E_N_cond,
                   'P':P,
                   'π':π,
                   'P_tilde':P_tilde,
@@ -217,7 +217,7 @@ class InterDivConstraint:
                   'moment_bound_cond':moment_bound_cond,
                   'moment_cond':moment_cond,
                   'moment':moment,
-                  'M':M}
+                  'N':N}
         
         return result
     

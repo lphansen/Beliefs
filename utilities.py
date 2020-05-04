@@ -163,22 +163,22 @@ class InterDivConstraint:
             error = np.max(np.abs(self.e - e_old))
             count += 1
         
-        # Calculate M and E[M|state k]
+        # Calculate N and E[N|state k]
         if self.lower:
-            M = 1./self.ϵ * np.exp(-self.g/self.ξ+self.f@λ) * (self.pd_indicator@self.e) / (self.pd_lag_indicator@self.e)
+            N = 1./self.ϵ * np.exp(-self.g/self.ξ+self.f@λ) * (self.pd_indicator@self.e) / (self.pd_lag_indicator@self.e)
         else:
-            M = 1./self.ϵ * np.exp(self.g/self.ξ+self.f@λ) * (self.pd_indicator@self.e) / (self.pd_lag_indicator@self.e)
-        E_M_cond = []
+            N = 1./self.ϵ * np.exp(self.g/self.ξ+self.f@λ) * (self.pd_indicator@self.e) / (self.pd_lag_indicator@self.e)
+        E_N_cond = []
         for i in np.arange(1,self.n_states+1,1):
-            temp = np.mean(M[self.pd_lag_indicator[:,i-1]])
-            E_M_cond.append(temp)
-        E_M_cond = np.array(E_M_cond)
+            temp = np.mean(N[self.pd_lag_indicator[:,i-1]])
+            E_N_cond.append(temp)
+        E_N_cond = np.array(E_N_cond)
         
         # Calculate transition matrix and staionary distribution under distorted probability
         P_tilde = np.zeros((self.n_states,self.n_states))
         for i in np.arange(1,self.n_states+1,1):
             for j in np.arange(1,self.n_states+1,1):
-                P_tilde[i-1,j-1] = np.mean(M[self.pd_lag_indicator[:,i-1]]*self.pd_indicator[self.pd_lag_indicator[:,i-1]][:,j-1]) 
+                P_tilde[i-1,j-1] = np.mean(N[self.pd_lag_indicator[:,i-1]]*self.pd_indicator[self.pd_lag_indicator[:,i-1]][:,j-1]) 
         A = P_tilde.T - np.eye(self.n_states)
         A[-1] = np.ones(self.n_states)
         B = np.zeros(self.n_states)
@@ -199,7 +199,7 @@ class InterDivConstraint:
         # Calculate conditional/unconditional 
         RE_cond = []
         for i in np.arange(1,self.n_states+1,1):
-            temp = np.mean(M[self.pd_lag_indicator[:,i-1]]*np.log(M[self.pd_lag_indicator[:,i-1]]))
+            temp = np.mean(N[self.pd_lag_indicator[:,i-1]]*np.log(N[self.pd_lag_indicator[:,i-1]]))
             RE_cond.append(temp)
         RE_cond = np.array(RE_cond)
         RE = RE_cond @ π_tilde
@@ -210,7 +210,7 @@ class InterDivConstraint:
         # Conditional moment bounds
         moment_bound_cond = []
         for i in np.arange(1,self.n_states+1,1):
-            temp = np.mean(M[self.pd_lag_indicator[:,i-1]]*self.g[self.pd_lag_indicator[:,i-1]])
+            temp = np.mean(N[self.pd_lag_indicator[:,i-1]]*self.g[self.pd_lag_indicator[:,i-1]])
             moment_bound_cond.append(temp)
         moment_bound_cond = np.array(moment_bound_cond)
         moment_bound = moment_bound_cond @ π_tilde
@@ -235,7 +235,7 @@ class InterDivConstraint:
                   'v_0':v_0,
                   'RE_cond':RE_cond,
                   'RE':RE,
-                  'E_M_cond':E_M_cond,
+                  'E_N_cond':E_N_cond,
                   'P':P,
                   'π':π,
                   'P_tilde':P_tilde,
@@ -245,7 +245,7 @@ class InterDivConstraint:
                   'moment_bound_cond':moment_bound_cond,
                   'moment_cond':moment_cond,
                   'moment':moment,
-                  'M':M}
+                  'N':N}
         
         return result
     
