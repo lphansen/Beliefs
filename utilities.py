@@ -250,12 +250,12 @@ class InterDivConstraint:
         return result
     
     
-    def find_ξ(self,x_min_RE,lower,tol=1e-7,max_iter=100):
+    def find_ξ(self,x_min_RE,lower,tol=1e-7,max_iter=100,upper_bound=100.):
         """
         This function will use bisection method to find the ξ that corresponds to x times the minimal RE.
         """
         # Get minimal RE
-        result = self.iterate(100,lower)
+        result = self.iterate(100.,lower)
         min_RE = result['RE']
         
         # Start iteration
@@ -266,7 +266,7 @@ class InterDivConstraint:
                 ξ = 1.
                 # Set lower/upper bounds for ξ
                 lower_bound = 0.
-                upper_bound = 100.
+                upper_bound = upper_bound
                 
             result = self.iterate(ξ,lower)
             RE = result['RE']
