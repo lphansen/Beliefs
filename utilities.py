@@ -311,7 +311,28 @@ def risk_premia(ζ,x_min_RE,lower,ξ_tol=1e-7):
     # Solve models with the chosen ξ
     result = solver.iterate(ξ,lower=lower)
 
-    # Calculate risk premia
+    # Calculate risk premia, empirical
+    # Term 1
+    moment_cond_g1 = []
+    for i in np.arange(1,solver.n_states+1,1):
+        temp = np.mean(g1[solver.pd_lag_indicator[:,i-1]])
+        moment_cond_g1.append(temp)
+    moment_cond_g1 = np.array(moment_cond_g1)
+    moment_g1 = moment_cond_g1@result['π']
+    
+    # Term 2
+    moment_cond_g2 = []
+    for i in np.arange(1,solver.n_states+1,1):
+        temp = np.mean(g2[solver.pd_lag_indicator[:,i-1]])
+        moment_cond_g2.append(temp)
+    moment_cond_g2 = np.array(moment_cond_g2)
+    moment_g2 = moment_cond_g2@result['π']
+    
+    # Combine term 1 and term 2
+    risk_premia_empirical = np.log(moment_g1) - np.log(moment_g2)
+    risk_premia_cond_empirical = np.log(moment_cond_g1) - np.log(moment_cond_g2)
+    
+    # Calculate risk premia, distorted
     # Term 1
     moment_bound_cond_g1 = []
     for i in np.arange(1,solver.n_states+1,1):
@@ -330,8 +351,8 @@ def risk_premia(ζ,x_min_RE,lower,ξ_tol=1e-7):
     
     # Combine term 1 and term 2
     risk_premia = np.log(moment_bound_g1) - np.log(moment_bound_g2)
-    
-    return risk_premia
+    risk_premia_cond = np.log(moment_bound_cond_g1) - np.log(moment_bound_cond_g2)    
+    return risk_premia, risk_premia_cond, risk_premia_empirical, risk_premia_cond_empirical
 
 
 def find_ζ(x_min_RE,lower,bounds=(-1.1,-0.9),ζ_tol=1e-4,ξ_tol=1e-7,max_iter=100,print_option=False):
@@ -351,28 +372,34 @@ def find_ζ(x_min_RE,lower,bounds=(-1.1,-0.9),ζ_tol=1e-4,ξ_tol=1e-7,max_iter=1
         if count == 0:
             # Calculate derivatives at the boundary points
             # Use left derivative at the lower bound
-            objective_lower = risk_premia(ζ_lower,x_min_RE=x_min_RE,lower=lower,ξ_tol=ξ_tol)
-            objective_lower_plus = risk_premia(ζ_lower+ζ_tol,x_min_RE=x_min_RE,lower=lower,ξ_tol=ξ_tol)
+            objective_lower,_,_,_ = risk_premia(ζ_lower,x_min_RE=x_min_RE,lower=lower,ξ_tol=ξ_tol)
+            objective_lower_plus,_,_,_ = risk_premia(ζ_lower+ζ_tol,x_min_RE=x_min_RE,lower=lower,ξ_tol=ξ_tol)
             derivative_lower = (objective_lower_plus-objective_lower)/ζ_tol
             # Use right derivative at the upper bound
-            objective_upper = risk_premia(ζ_upper,x_min_RE=x_min_RE,lower=lower,ξ_tol=ξ_tol)
-            objective_upper_minus = risk_premia(ζ_upper-ζ_tol,x_min_RE=x_min_RE,lower=lower,ξ_tol=ξ_tol)
+            objective_upper,_,_,_ = risk_premia(ζ_upper,x_min_RE=x_min_RE,lower=lower,ξ_tol=ξ_tol)
+            objective_upper_minus,_,_,_ = risk_premia(ζ_upper-ζ_tol,x_min_RE=x_min_RE,lower=lower,ξ_tol=ξ_tol)
             derivative_upper = (objective_upper-objective_upper_minus)/ζ_tol            
             if np.sign(derivative_lower) == np.sign(derivative_upper):
                 raise Exception("It seems the optimal point is out of the initial interval! Please try a different one.") 
                 break
             else:
                 count += 1
-        # Check sign of derivative at the middle point
+                
+        # Check sign of derivative at the mid point
         else:
             ζ_mid = (ζ_lower+ζ_upper)/2.
-            objective_mid = risk_premia(ζ_mid,x_min_RE=x_min_RE,lower=lower,ξ_tol=ξ_tol)
-            objective_mid_minus = risk_premia(ζ_mid-ζ_tol,x_min_RE=x_min_RE,lower=lower,ξ_tol=ξ_tol)
-            objective_mid_plus  = risk_premia(ζ_mid+ζ_tol,x_min_RE=x_min_RE,lower=lower,ξ_tol=ξ_tol)
+            objective_mid,_,_,_ = risk_premia(ζ_mid,x_min_RE=x_min_RE,lower=lower,ξ_tol=ξ_tol)
+            objective_mid_minus,_,_,_ = risk_premia(ζ_mid-ζ_tol,x_min_RE=x_min_RE,lower=lower,ξ_tol=ξ_tol)
+            objective_mid_plus,_,_,_  = risk_premia(ζ_mid+ζ_tol,x_min_RE=x_min_RE,lower=lower,ξ_tol=ξ_tol)
             
             if np.sign(objective_mid-objective_mid_minus) != np.sign(objective_mid_plus-objective_mid):
-                ζ_optimal = ζ_mid
-                break
+                if lower and np.sign(objective_mid-objective_mid_minus) == 1:
+                    raise("Warning: accuracy level cannot be achieved. Please respecify tolerance level.")
+                elif upper and np.sign(objective_mid-objective_mid_minus) == -1:
+                    raise("Warning: accuracy level cannot be achieved. Please respecify tolerance level.")
+                else:
+                    ζ_optimal = ζ_mid
+                    break
             else:
                 # Use left or right derivative; They have the same sign
                 derivative_mid = (objective_mid_plus-objective_mid)/(ζ_tol)  
