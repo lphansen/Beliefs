@@ -288,6 +288,131 @@ class InterDivConstraint:
                 print('Maximal iterations reached. Error = %s' % (RE/min_RE-x_min_RE))
         
         return ξ
+    
+      
+
+'''
+Below are helper functions that find the lower/upper bounds for the proportional risk premium.
+'''
         
-        
+def risk_premia(ζ,x_min_RE,lower,ξ_tol=1e-7):
+    # Initialize the solver
+    solver = InterDivConstraint(tol=1e-9,max_iter=1000)
+
+    # Define g(X) = Rw + ζ*Rf
+    g1 = np.exp(solver.log_Rw)
+    g2 = (solver.X[:,0]+1.)*np.exp(solver.log_Rw)
+
+    solver.g = g1 + ζ*g2
+
+    # Find ξ that corresponds to x min RE
+    ξ = solver.find_ξ(x_min_RE=x_min_RE,lower=lower,tol=ξ_tol,max_iter=100)
+
+    # Solve models with the chosen ξ
+    result = solver.iterate(ξ,lower=lower)
+
+    # Calculate risk premia
+    # Term 1
+    moment_bound_cond_g1 = []
+    for i in np.arange(1,solver.n_states+1,1):
+        temp = np.mean(result['N'][solver.pd_lag_indicator[:,i-1]]*g1[solver.pd_lag_indicator[:,i-1]])
+        moment_bound_cond_g1.append(temp)
+    moment_bound_cond_g1 = np.array(moment_bound_cond_g1)
+    moment_bound_g1 = moment_bound_cond_g1@result['π_tilde']
+    
+    # Term 2
+    moment_bound_cond_g2 = []
+    for i in np.arange(1,solver.n_states+1,1):
+        temp = np.mean(result['N'][solver.pd_lag_indicator[:,i-1]]*g2[solver.pd_lag_indicator[:,i-1]])
+        moment_bound_cond_g2.append(temp)
+    moment_bound_cond_g2 = np.array(moment_bound_cond_g2)
+    moment_bound_g2 = moment_bound_cond_g2@result['π_tilde']
+    
+    # Combine term 1 and term 2
+    risk_premia = np.log(moment_bound_g1) - np.log(moment_bound_g2)
+    
+    return risk_premia
+
+
+def find_ζ(x_min_RE,lower,bounds=(-1.1,-0.9),ζ_tol=1e-4,ξ_tol=1e-7,max_iter=100,print_option=False):
+    """
+    This function will use bisection method to find the ζ that minimizes/maximizes the risk premia.
+    """
+    # Initialize lower/upper bounds for ζ
+    ζ_lower = bounds[0]
+    ζ_upper = bounds[1]
+    count = 0
+    while True:
+        if print_option:
+            print("--- Iteration: %s ---" % count)
+            print("Bounds: (%s,%s)" % (ζ_lower,ζ_upper))
+            print("Error: %s" % (ζ_upper-ζ_lower))
+            
+        if count == 0:
+            # Calculate derivatives at the boundary points
+            # Use left derivative at the lower bound
+            objective_lower = risk_premia(ζ_lower,x_min_RE=x_min_RE,lower=lower,ξ_tol=ξ_tol)
+            objective_lower_plus = risk_premia(ζ_lower+ζ_tol,x_min_RE=x_min_RE,lower=lower,ξ_tol=ξ_tol)
+            derivative_lower = (objective_lower_plus-objective_lower)/ζ_tol
+            # Use right derivative at the upper bound
+            objective_upper = risk_premia(ζ_upper,x_min_RE=x_min_RE,lower=lower,ξ_tol=ξ_tol)
+            objective_upper_minus = risk_premia(ζ_upper-ζ_tol,x_min_RE=x_min_RE,lower=lower,ξ_tol=ξ_tol)
+            derivative_upper = (objective_upper-objective_upper_minus)/ζ_tol            
+            if np.sign(derivative_lower) == np.sign(derivative_upper):
+                raise Exception("It seems the optimal point is out of the initial interval! Please try a different one.") 
+                break
+            else:
+                count += 1
+        # Check sign of derivative at the middle point
+        else:
+            ζ_mid = (ζ_lower+ζ_upper)/2.
+            objective_mid = risk_premia(ζ_mid,x_min_RE=x_min_RE,lower=lower,ξ_tol=ξ_tol)
+            objective_mid_minus = risk_premia(ζ_mid-ζ_tol,x_min_RE=x_min_RE,lower=lower,ξ_tol=ξ_tol)
+            objective_mid_plus  = risk_premia(ζ_mid+ζ_tol,x_min_RE=x_min_RE,lower=lower,ξ_tol=ξ_tol)
+            
+            if np.sign(objective_mid-objective_mid_minus) != np.sign(objective_mid_plus-objective_mid):
+                ζ_optimal = ζ_mid
+                break
+            else:
+                # Use left or right derivative; They have the same sign
+                derivative_mid = (objective_mid_plus-objective_mid)/(ζ_tol)  
+            
+            if print_option:
+                print("Derivative at mid point: %s" % derivative_mid)
+                
+            if lower:
+                if derivative_mid > 0:
+                    # Mean value theorem
+                    ζ_upper = ζ_mid+ζ_tol
+                elif derivative_mid < 0:
+                    ζ_lower = ζ_mid-ζ_tol
+                else:
+                    ζ_optimal = ζ_mid
+                    break
+            else:
+                if derivative_mid > 0:
+                    ζ_lower = ζ_mid-ζ_tol
+                elif derivative_mid < 0:
+                    ζ_upper = ζ_mid+ζ_tol
+                else:
+                    ζ_optimal = ζ_mid
+                    break
+            
+            # Check if the result converges        
+            if (ζ_upper-ζ_lower) <= 2*ζ_tol:
+                ζ_optimal = (ζ_upper+ζ_lower)/2.
+                if print_option:
+                    print('--- Finished ---')
+                break
+            
+            # Check if maximal iterations have been reached or not
+            if count == max_iter:
+                if print_option:
+                    print('--- Maximal iterations reached. Error = %s ---' % (ζ_upper-ζ_lower)/2.)
+                ζ_optimal = (ζ_upper+ζ_lower)/2.
+                break
+                
+            count += 1
+    
+    return ζ_optimal   
         
