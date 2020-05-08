@@ -185,7 +185,7 @@ def box_chart(result_min,result_lower,result_upper,save=False,dpi=1200):
     plt.show()
     
     if save:
-        fig.savefig("box_20%.png",dpi)
+        fig.savefig("box_20%.png",dpi=dpi)
 
 # ξs that correspond to 0%-25% higher min RE (g(X)=log Rw)
 ξs_lower = np.array([100,
