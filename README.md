@@ -15,8 +15,8 @@ To access our notebook, please follow steps below:
 ```
 cd [folder path name]
 ```
-2.	Clone the github repository for the paper 
-    - If you don’t have github installed, try installing it from this page: https://git-scm.com/download/win.
+2.	Clone the github repository for the paper
+    - If you don’t have github installed, try installing it from this page: https://git-scm.com/download.
     - You can do this by running in the command prompt. 
 ```
 git clone https://github.com/lphansen/Beliefs
@@ -27,7 +27,7 @@ git clone https://github.com/lphansen/Beliefs
 cd Beliefs
 jupyter notebook
 ```
-4.	Open ```Belief_identification.ipynb```
+4.	Open ```Belief_identification.ipynb```.
 5.  Run notebooks cell by cell or click "Run all" from "kernel" in the menu bar to see details about our model results and computational details.   
 
 
