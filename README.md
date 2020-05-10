@@ -10,7 +10,7 @@ This repository contains codes and a jupyter notebook which estimates and demons
 ## Acessing our jupyter notebook
 To access our notebook, please follow steps below:
 1.	Open a Windows command prompt or Mac terminal and change into the folder you would like to store the files. 
-    - You can do this using the command __cd__ in the command prompt (on Windows) or terminal (on Mac).    
+    - You can do this using the command ``cd`` in the command prompt (on Windows) or terminal (on Mac).    
     - For example, running ```cd 'C:\Users\username\python'``` (don’t forget '' around the path name to use an absolute path) would lead me to my designated folder.
 ```
 cd [folder path name]
@@ -27,7 +27,7 @@ git clone https://github.com/lphansen/Beliefs
 cd Beliefs
 jupyter notebook
 ```
-6.	Open ```Belief_identification.ipynb```
-7.  Run notebooks cell by cell or click "Run all" from "kernel" in the menu bar to see details about our model results and computational details.   
+4.	Open ```Belief_identification.ipynb```
+5.  Run notebooks cell by cell or click "Run all" from "kernel" in the menu bar to see details about our model results and computational details.   
 
 
