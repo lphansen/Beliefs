@@ -52,7 +52,7 @@ class InterDivConstraint:
         Load datasets and initialize the solver.
         """        
         # Load data
-        data = pd.read_csv('UnitaryData.csv')
+        data = pd.read_csv('./data/UnitaryData.csv')
         pd_lag = np.array(data['d.p'])
         
         # Calculate terciles for pd ratio

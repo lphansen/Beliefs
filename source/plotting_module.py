@@ -1,7 +1,9 @@
+import ipywidgets as widgets
 import matplotlib.pyplot as plt
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
-from utilities import *
+from ipywidgets import interact, interactive, fixed, interact_manual
+from source.utilities import *
 
 def entropy_moment_bounds():
     # Solve the minimization problems over a grid of ξ
@@ -187,6 +189,7 @@ def box_chart(result_min,result_lower,result_upper,save=False,dpi=1200):
     if save:
         fig.savefig("box_20%.png",dpi=dpi)
 
+        
 # ξs that correspond to 0%-25% higher min RE (g(X)=log Rw), step size=5%
 ξs_lower = np.array([100,
                      0.2925539016723633,
@@ -200,3 +203,17 @@ def box_chart(result_min,result_lower,result_upper,save=False,dpi=1200):
                      0.17248201370239258,
                      0.14917802810668945,
                      0.1332303285598755])
+
+# ζs that correspond to 0%-25% higher min RE (risk premia), step size=5%
+ζs_lower = np.array([-1.,
+                     -1.007,
+                     -1.006,
+                     -1.006,
+                     -1.006,
+                     -1.006])
+ζs_upper = np.array([-1.,
+                     -1.007,
+                     -1.007,
+                     -1.008,
+                     -1.007,
+                     -1.008])
