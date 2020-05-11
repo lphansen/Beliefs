@@ -27,7 +27,7 @@ git clone https://github.com/lphansen/Beliefs
 cd Beliefs
 jupyter notebook
 ```
-4.	Open ```Belief_identification.ipynb```.
+4.	Open ```Belief_Notebook.ipynb```.
 5.  Run notebooks cell by cell or click "Run all" from "kernel" in the menu bar to see details about our model results and computational details.   
 
 
