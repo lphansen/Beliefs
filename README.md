@@ -17,11 +17,11 @@ cd [folder path name]
 ```
 2.	Clone the github repository for the paper
     - If you don’t have github installed, try installing it from this page: https://git-scm.com/download.
-    - You can do this by running in the command prompt. 
+    - You can do this by running below in the command prompt:
 ```
 git clone https://github.com/lphansen/Beliefs
 ```
-3.	Change directories into the ‘Beliefs’ folder and open jupyter notebook by running below in command prompt
+3.	Change directories into the ‘Beliefs’ folder and open jupyter notebook by running below in command prompt:
     - If you don’t have anaconda3 and jupyter notebook installed, try installing from this page: https://jupyter.org/install.html
 ```
 cd Beliefs
