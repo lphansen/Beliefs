@@ -1,7 +1,7 @@
 ##################################################
 ##  Description:
 ##  This file aims to provide the model solution for the 
-##  example in Chen, Hansen and Hansen (working paper). Advanced users
+##  example in Chen, Hansen and Hansen (forthcomiing paper). Advanced users
 ##  can modify the Python code to accomodate other examples.
 ##################################################
 ##  License_info:
