@@ -30,7 +30,6 @@ def entropy_moment_bounds(n_states):
         results_upper[i] = temp
 
     REs_lower = np.array([result['RE'] for result in results_lower])
-    REs_upper = np.array([result['RE'] for result in results_upper])
     moment_bounds_cond_lower = np.array([result['moment_bound_cond'] for result in results_lower])
     moment_bounds_cond_upper = np.array([result['moment_bound_cond'] for result in results_upper])
     moment_bounds_lower = np.array([result['moment_bound'] for result in results_lower])
@@ -48,11 +47,6 @@ def entropy_moment_bounds(n_states):
     
     fig.add_trace(
         go.Scatter(x=ξ_grid, y=REs_lower, name='lower bound', line=dict(color='blue')),
-        row=1, col=1
-    )
-
-    fig.add_trace(
-        go.Scatter(x=ξ_grid, y=REs_upper, name='upper bound', line=dict(color='purple')),
         row=1, col=1
     )
     
@@ -140,16 +134,16 @@ def entropy_moment_bounds(n_states):
                 buttons=list([
                     dict(label="Unconditional",
                          method="update",
-                         args=[{"visible": [True]*6 + [False]*15 }]),
+                         args=[{"visible": [True]*5 + [False]*15 }]),
                     dict(label="State 1",
                          method="update",
-                         args=[{"visible": [True]*3 + [False]*3 + [True]*3 + [False]*6}]),
+                         args=[{"visible": [True]*2 + [False]*3 + [True]*3 + [False]*6}]),
                     dict(label="State 2",
                          method="update",
-                         args=[{"visible": [True]*3 + [False]*6 + [True]*3 + [False]*3}]),
+                         args=[{"visible": [True]*2 + [False]*6 + [True]*3 + [False]*3}]),
                     dict(label="State 3",
                          method="update",
-                         args=[{"visible": [True]*3 + [False]*9 + [True]*3}]),
+                         args=[{"visible": [True]*2 + [False]*9 + [True]*3}]),
                 ]),
             )
         ])
