@@ -1,7 +1,7 @@
 ##################################################
 ##  Description:
 ##  This file aims to provide the model solution for the 
-##  example in Chen, Hansen and Hansen (forthcomiing paper). Advanced users
+##  example in Chen, Hansen and Hansen (forthcoming paper). Advanced users
 ##  can modify the Python code to accomodate other examples.
 ##################################################
 ##  License_info:
@@ -47,7 +47,7 @@ def _objective_gradient_numba(f,g,pd_lag_indicator,pd_indicator_float,state,n_f,
 Solver for the intertemporal divergence problem. Here we use relative entropy as the measure of divergence.
 '''
 class InterDivConstraint:
-    def __init__(self,tol=1e-8,max_iter=1000):
+    def __init__(self,n_states, tol=1e-8,max_iter=1000):
         """
         Load datasets and initialize the solver.
         """        
@@ -55,13 +55,22 @@ class InterDivConstraint:
         data = pd.read_csv('./data/UnitaryData.csv')
         pd_lag = np.array(data['d.p'])
         
+        # Specify dimensions
+        self.n_f = 4
+        self.n_states = n_states
+        
         # Calculate terciles for pd ratio
-        tercile_1 = np.quantile(pd_lag,1./3)
-        tercile_2 = np.quantile(pd_lag,2./3)
+        #tercile_1 = np.quantile(pd_lag,1./3)
+        #tercile_2 = np.quantile(pd_lag,2./3)
 
         # Calculate indicator based on today's pd ratio
-        pd_lag_indicator = np.array([pd_lag <= tercile_1,(pd_lag <= tercile_2) & (pd_lag > tercile_1),pd_lag > tercile_2]).T
-
+        #pd_lag_indicator = np.array([pd_lag <= tercile_1,(pd_lag <= tercile_2) & (pd_lag > tercile_1),pd_lag > tercile_2]).T
+        pd_lag_indicator_float = np.empty((data.shape[0], self.n_states))
+        tercile = np.quantile(pd_lag, np.arange(self.n_states + 1)/self.n_states)
+        for i in range(self.n_states):
+            pd_lag_indicator_float[:,i] = (pd_lag >= tercile[i]) & (pd_lag <= tercile[i+1])
+        pd_lag_indicator = pd_lag_indicator_float.astype(bool)
+        
         # Calculate indicator for tomorrow's pd ratio
         self.pd_indicator = pd_lag_indicator[1:]
         self.pd_indicator_float = self.pd_indicator.astype(float)
@@ -69,7 +78,10 @@ class InterDivConstraint:
         # Drop last row since we do not have tomorrow's pd ratio at that point
         self.pd_lag_indicator = pd_lag_indicator[:-1]
         self.X = np.array(data[['Rf','Rm-Rf','SMB','HML']])[:-1]
-        self.f = np.hstack((self.X * self.pd_lag_indicator[:,:1],self.X * self.pd_lag_indicator[:,1:2],self.X * self.pd_lag_indicator[:,2:3]))
+        #self.f = np.hstack((self.X * self.pd_lag_indicator[:,:1],self.X * self.pd_lag_indicator[:,1:2],self.X * self.pd_lag_indicator[:,2:3]))
+        self.f = np.empty((self.X.shape[0], self.X.shape[1] * self.n_states))
+        for i in range(self.n_states):
+            self.f[:,(self.n_f * i):(self.n_f * (i+1))] = self.X * self.pd_lag_indicator[:,(i):(i+1)]
         self.log_Rw = np.array(data['log.RW'])[:-1] 
         
         # Placeholder for g,state, e, ϵ
@@ -77,10 +89,6 @@ class InterDivConstraint:
         self.state = None
         self.e = None
         self.ϵ = None
-        
-        # Specify dimensions
-        self.n_f = 4
-        self.n_states = 3
         
         # Specify tolerance levels and maximum iterations for the convex solver
         self.tol = tol
