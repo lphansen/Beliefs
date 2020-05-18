@@ -190,30 +190,34 @@ def box_chart(result_min,result_lower,result_upper,save=False,dpi=1200):
         fig.savefig("box_20%.png",dpi=dpi)
 
         
-# ξs that correspond to 0%-25% higher min RE (g(X)=log Rw), step size=5%
+# ξs that correspond to 0%-30% higher min RE (g(X)=log Rw), step size=5%
 ξs_lower = np.array([100,
                      0.2925539016723633,
                      0.2051076889038086,
                      0.16624605655670166,
                      0.14301961660385132,
-                     0.12713348865509033])
+                     0.12713348865509033,
+                     0.11538618803024292])
 ξs_upper = np.array([100,
                      0.2989816665649414,
                      0.21141958236694336,
                      0.17248201370239258,
                      0.14917802810668945,
-                     0.1332303285598755])
+                     0.1332303285598755,
+                     0.12140893936157227])
 
-# ζs that correspond to 0%-25% higher min RE (risk premia), step size=5%
+# ζs that correspond to 0%-30% higher min RE (risk premia), step size=5%
 ζs_lower = np.array([1.,
                      1.007,
                      1.006,
                      1.006,
                      1.006,
-                     1.006])
+                     1.006,
+                     1.008])
 ζs_upper = np.array([1.,
                      1.007,
                      1.007,
                      1.008,
                      1.007,
-                     1.008])
+                     1.008,
+                     1.006])
