@@ -5,6 +5,55 @@ from plotly.subplots import make_subplots
 from ipywidgets import interact, interactive, fixed, interact_manual
 from source.utilities import *
 
+def objective_vs_ξ(n_states):
+    # Solve the minimization problems over a grid of ξ
+    tol = 2e-10
+    max_iter = 1000
+    
+    # Initialize solver
+    solver = InterDivConstraint(n_states,tol,max_iter)
+
+    # Define g(X) = log Rw
+    solver.g = solver.log_Rw
+    
+    # Grid for ξ
+    ξ_grid = np.arange(.01,1.01,.005)
+
+    results_lower = [None]*len(ξ_grid)
+    
+    for i in range(len(ξ_grid)):
+        ξ = ξ_grid[i]
+        temp = solver.iterate(ξ,lower=True)
+        results_lower[i] = temp
+
+    μs_lower = np.array([result['μ'] for result in results_lower])
+    ϵs_lower = np.array([result['ϵ'] for result in results_lower])
+
+    # Plots
+    fig = make_subplots(rows=1, cols=2)
+    
+    fig.add_trace(
+        go.Scatter(x=ξ_grid, y=μs_lower, name='μ', line=dict(color='blue')),
+        row=1, col=1
+    )
+    
+    fig.add_trace(
+        go.Scatter(x=ξ_grid, y=ϵs_lower, name='ϵ', line=dict(color='green')),
+        row=1, col=2
+    )
+
+    fig.update_layout(height=400, width=1000, title_text="Minimized μ (left) and ϵ (right)", showlegend = False)
+    fig.update_xaxes(rangemode="tozero",title_text='ξ')
+    fig.update_yaxes(rangemode="tozero")
+    
+    fig['layout']['xaxis'+str(int(1))].update(range = (0.,1.))
+#     fig['layout']['yaxis'+str(int(1))].update(range = (0.,0.06))
+    fig['layout']['xaxis'+str(int(2))].update(range = (0.,1.))
+#     fig['layout']['yaxis'+str(int(2))].update(range = (-0.01,0.04))
+
+    fig.show()
+    
+    
 def entropy_moment_bounds(n_states):
     # Solve the minimization problems over a grid of ξ
     tol = 2e-10
