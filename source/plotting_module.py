@@ -5,13 +5,13 @@ from plotly.subplots import make_subplots
 from ipywidgets import interact, interactive, fixed, interact_manual
 from source.utilities import *
 
-def entropy_moment_bounds():
+def entropy_moment_bounds(n_states):
     # Solve the minimization problems over a grid of ξ
     tol = 2e-10
     max_iter = 1000
     
     # Initialize solver
-    solver = InterDivConstraint(tol,max_iter)
+    solver = InterDivConstraint(n_states, tol,max_iter)
 
     # Define g(X) = log Rw
     solver.g = solver.log_Rw
