@@ -11,7 +11,7 @@ def entropy_moment_bounds(n_states):
     max_iter = 1000
     
     # Initialize solver
-    solver = InterDivConstraint(n_states, tol,max_iter)
+    solver = InterDivConstraint(n_states,tol,max_iter)
 
     # Define g(X) = log Rw
     solver.g = solver.log_Rw
@@ -205,15 +205,15 @@ def box_chart(result_min,result_lower,result_upper,save=False,dpi=1200):
                      0.1332303285598755])
 
 # ζs that correspond to 0%-25% higher min RE (risk premia), step size=5%
-ζs_lower = np.array([-1.,
-                     -1.007,
-                     -1.006,
-                     -1.006,
-                     -1.006,
-                     -1.006])
-ζs_upper = np.array([-1.,
-                     -1.007,
-                     -1.007,
-                     -1.008,
-                     -1.007,
-                     -1.008])
+ζs_lower = np.array([1.,
+                     1.007,
+                     1.006,
+                     1.006,
+                     1.006,
+                     1.006])
+ζs_upper = np.array([1.,
+                     1.007,
+                     1.007,
+                     1.008,
+                     1.007,
+                     1.008])

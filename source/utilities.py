@@ -47,7 +47,7 @@ def _objective_gradient_numba(f,g,pd_lag_indicator,pd_indicator_float,state,n_f,
 Solver for the intertemporal divergence problem. Here we use relative entropy as the measure of divergence.
 '''
 class InterDivConstraint:
-    def __init__(self,n_states, tol=1e-8,max_iter=1000):
+    def __init__(self,n_states,tol=1e-8,max_iter=1000):
         """
         Load datasets and initialize the solver.
         """        
@@ -297,15 +297,15 @@ class InterDivConstraint:
 Below are helper functions that find the lower/upper bounds for the proportional risk premium.
 '''
         
-def risk_premia(ζ,x_min_RE,lower,ξ_tol=1e-7):
+def risk_premia(n_states,ζ,x_min_RE,lower,ξ_tol=1e-7):
     # Initialize the solver
-    solver = InterDivConstraint(tol=1e-9,max_iter=1000)
+    solver = InterDivConstraint(n_states=n_states,tol=1e-9,max_iter=1000)
 
-    # Define g(X) = Rw + ζ*Rf
+    # Define g(X) = Rw - ζ*Rf
     g1 = np.exp(solver.log_Rw)
     g2 = (solver.X[:,0]+1.)*np.exp(solver.log_Rw)
 
-    solver.g = g1 + ζ*g2
+    solver.g = g1 - ζ*g2
 
     # Find ξ that corresponds to x min RE
     ξ = solver.find_ξ(x_min_RE=x_min_RE,lower=lower,tol=ξ_tol,max_iter=100)
@@ -362,15 +362,15 @@ def risk_premia(ζ,x_min_RE,lower,ξ_tol=1e-7):
 Below are helper functions that find the lower/upper bounds for the volatility.
 '''
         
-def volatility(ζ,x_min_RE,lower,ξ_tol=1e-7):
+def volatility(n_states,ζ,x_min_RE,lower,ξ_tol=1e-7):
     # Initialize the solver
-    solver = InterDivConstraint(tol=1e-9,max_iter=1000)
+    solver = InterDivConstraint(n_states=n_states,tol=1e-9,max_iter=1000)
 
-    # Define g(X) = Rw + ζ*log Rw
+    # Define g(X) = Rw - ζ*log Rw
     g1 = np.exp(solver.log_Rw)
     g2 = solver.log_Rw
 
-    solver.g = g1 + ζ*g2
+    solver.g = g1 - ζ*g2
 
     # Find ξ that corresponds to x min RE
     ξ = solver.find_ξ(x_min_RE=x_min_RE,lower=lower,tol=ξ_tol,max_iter=100)
