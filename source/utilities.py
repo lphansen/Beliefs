@@ -59,12 +59,7 @@ class InterDivConstraint:
         self.n_f = 4
         self.n_states = n_states
         
-        # Calculate terciles for pd ratio
-        #tercile_1 = np.quantile(pd_lag,1./3)
-        #tercile_2 = np.quantile(pd_lag,2./3)
-
         # Calculate indicator based on today's pd ratio
-        #pd_lag_indicator = np.array([pd_lag <= tercile_1,(pd_lag <= tercile_2) & (pd_lag > tercile_1),pd_lag > tercile_2]).T
         pd_lag_indicator_float = np.empty((data.shape[0], self.n_states))
         tercile = np.quantile(pd_lag, np.arange(self.n_states + 1)/self.n_states)
         for i in range(self.n_states):
@@ -78,7 +73,6 @@ class InterDivConstraint:
         # Drop last row since we do not have tomorrow's pd ratio at that point
         self.pd_lag_indicator = pd_lag_indicator[:-1]
         self.X = np.array(data[['Rf','Rm-Rf','SMB','HML']])[:-1]
-        #self.f = np.hstack((self.X * self.pd_lag_indicator[:,:1],self.X * self.pd_lag_indicator[:,1:2],self.X * self.pd_lag_indicator[:,2:3]))
         self.f = np.empty((self.X.shape[0], self.X.shape[1] * self.n_states))
         for i in range(self.n_states):
             self.f[:,(self.n_f * i):(self.n_f * (i+1))] = self.X * self.pd_lag_indicator[:,(i):(i+1)]
