@@ -1,3 +1,14 @@
+##################################################
+##  Description:
+##  This file aims to provide figures for the 
+##  example in Chen, Hansen and Hansen (forthcoming paper). Advanced users
+##  can modify the Python code to accomodate other examples.
+##################################################
+##  Any questions/suggestions, please contact
+##  Han Xu:  hanxuh@uchicago.edu
+##  Zhenhuan Xie: zhenhuanxie@uchicago.edu
+##################################################
+
 import ipywidgets as widgets
 import matplotlib.pyplot as plt
 import plotly.graph_objects as go

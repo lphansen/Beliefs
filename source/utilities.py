@@ -4,11 +4,9 @@
 ##  example in Chen, Hansen and Hansen (forthcoming paper). Advanced users
 ##  can modify the Python code to accomodate other examples.
 ##################################################
-##  License_info:
-##  2020 MFR project
-##################################################
 ##  Any questions/suggestions, please contact
 ##  Han Xu:  hanxuh@uchicago.edu
+##  Zhenhuan Xie: zhenhuanxie@uchicago.edu
 ##################################################
 
 import numpy as np
