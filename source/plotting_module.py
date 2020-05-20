@@ -18,7 +18,7 @@ from source.utilities import *
 
 def objective_vs_ξ(n_states):
     # Solve the minimization problems over a grid of ξ
-    tol = 2e-10
+    tol = 1e-9
     max_iter = 1000
     
     # Initialize solver
@@ -67,7 +67,7 @@ def objective_vs_ξ(n_states):
     
 def entropy_moment_bounds(n_states):
     # Solve the minimization problems over a grid of ξ
-    tol = 2e-10
+    tol = 1e-9
     max_iter = 1000
     
     # Initialize solver
