@@ -8,8 +8,10 @@ This repository contains codes and a jupyter notebook which estimates and demons
 [id4]: https://larspeterhansen.org/research/papers/
 
 ## Acessing our jupyter notebook
-There are two options to access our jupyter notebook. The easiest way is to open a copy in Google Colab by clicking the button below.
+There are two options to access our jupyter notebook. The easiest way is to open a copy in Google Colab by clicking the button below
+
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lphansen/Beliefs/blob/master/Belief_Notebook.ipynb)
+
 Then click "Run all" from "runtime" to see our results. If you are running the notebook the first time, you will need to click the authorization link under the first code cell and copy paste a pop-up string to the input box under the link. 
 
 An alternative way is to store the notebook as well as codes in your local machine. You can do this by following steps below:
