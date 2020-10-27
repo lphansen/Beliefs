@@ -22,7 +22,7 @@ def objective_vs_ξ(n_states):
     for i in range(len(ξ_grid)):
         ξ = ξ_grid[i]
         temp = solve(f=f, g=log_Rw, z0=z0, z1=z1, 
-                     ξ=ξ, n_states=n_states, tol=1e-9, max_iter=1000)
+                     ξ=ξ, tol=1e-9, max_iter=1000)
         results_lower[i] = temp
 
     μs_lower = np.array([result['μ'] for result in results_lower])
@@ -56,10 +56,10 @@ def entropy_moment_bounds(n_states):
     for i in range(len(ξ_grid)):
         ξ = ξ_grid[i]
         temp = solve(f=f, g=log_Rw, z0=z0, z1=z1, 
-                     ξ=ξ, n_states=n_states, tol=1e-9, max_iter=1000)        
+                     ξ=ξ, tol=1e-9, max_iter=1000)        
         results_lower[i] = temp
         temp = solve(f=f, g=-log_Rw, z0=z0, z1=z1, 
-                     ξ=ξ, n_states=n_states, tol=1e-9, max_iter=1000)          
+                     ξ=ξ, tol=1e-9, max_iter=1000)          
         results_upper[i] = temp
 
     REs_lower = np.array([result['RE'] for result in results_lower])

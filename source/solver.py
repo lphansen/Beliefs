@@ -8,7 +8,7 @@ from numba import njit
 from source.utilities import stationary_prob
 
 
-def solve(f, g, z0, z1, ξ, n_states, tol=1e-9, max_iter=1000):
+def solve(f, g, z0, z1, ξ, quadratic=False, tol=1e-9, max_iter=1000):
     """
     This function implements the iteration scheme in the Computational
     Strategy section in the Belief_Notebook. It assumes a n-state Markov
@@ -30,6 +30,9 @@ def solve(f, g, z0, z1, ξ, n_states, tol=1e-9, max_iter=1000):
         Coefficient on relative entropy constraint.
     n_states : int
         Number of states.
+    quadratic : bool
+        If True, use quadratic divergence;
+        If False, use relative entropy.
     tol : float
         Tolerance parameter for the iteration.
     max_iter : int
@@ -39,23 +42,42 @@ def solve(f, g, z0, z1, ξ, n_states, tol=1e-9, max_iter=1000):
     -------
     res : OptimizeResult
         Class that stores the results of the optimization.
+
     """
+    n_states = z0.shape[1]
     error = 1.
     count = 0
-    e = np.ones(n_states)
-    v = np.zeros(n_states)
-    λ = np.zeros(f.shape[1])
     n_fos = int(f.shape[1]/n_states) # Number of constraints on each state
-
-    while error > tol:
-        for state in range(n_states):
-            v[state], λ[state*n_fos: (state+1)*n_fos]\
-            = _minimize_objective(f, g, z0, z1, state, n_fos, e, ξ, tol, max_iter)
-        e_old = e
-        ϵ = v[0]
-        e = v/v[0]
-        error = np.max(np.abs(e - e_old))
-        count += 1
+    
+    if quadratic:
+        v = np.zeros(n_states)
+        v_μ = np.zeros(n_states)  # v+μ
+        λ_1 = np.zeros(f.shape[1])
+        λ_2 = np.zeros(n_states)        
+        while error > tol and count < max_iter:
+            for state in range(n_states):
+                v_μ[state], λ_1[state*n_fos: (state+1)*n_fos], λ_2[state]\
+                = _minimize_objective_quadratic(f, g, z0, z1, state, n_fos, v, ξ, tol, max_iter)
+            v_old = v
+            μ = v_μ[0]
+            v = v_μ - v_μ[0]
+            error = np.max(np.abs(v - v_old))
+            count += 1
+    else:
+        v = np.zeros(n_states)
+        e = np.ones(n_states)
+        λ = np.zeros(f.shape[1])        
+        while error > tol and count < max_iter:
+            for state in range(n_states):
+                v[state], λ[state*n_fos: (state+1)*n_fos]\
+                = _minimize_objective(f, g, z0, z1, state, n_fos, e, ξ, tol, max_iter)
+            e_old = e
+            ϵ = v[0]
+            e = v/v[0]
+            error = np.max(np.abs(e - e_old))
+            count += 1
+    if count == max_iter:
+        print('Warning: maximal iterations reached.')
 
     # N_1
     N = 1./ϵ * np.exp(-g/ξ+f@λ) * (z1@e) / (z0@e)
@@ -126,7 +148,7 @@ def find_ξ(solver_args, min_RE, pct, initial_guess=1., interval=(0, 100.), tol=
     ----------
     solver_args : tuple
         Arguments (except for ξ) to be passed into the solver, including
-        (f, g, z0, z1, n_states, tol, max_iter)
+        (f, g, z0, z1, tol, max_iter)
     min_RE : float
         Minimal relative entropy.
     pct : float
@@ -151,9 +173,9 @@ def find_ξ(solver_args, min_RE, pct, initial_guess=1., interval=(0, 100.), tol=
     count = 0
     ξ = initial_guess
     lower_bound, upper_bound = interval
-    f, g, z0, z1, n_states, solver_tol, solver_max_iter = solver_args
+    f, g, z0, z1, solver_tol, solver_max_iter = solver_args
     while np.abs(error) > tol and count < max_iter:
-        result = solve(f, g, z0, z1, ξ, n_states, solver_tol, solver_max_iter)
+        result = solve(f, g, z0, z1, ξ, solver_tol, solver_max_iter)
         RE = result['RE']
         error = RE/min_RE - pct - 1
         if np.abs(error) < tol or lower_bound == upper_bound:
@@ -211,7 +233,7 @@ def _minimize_objective(f, g, z0, z1, state, n_fos, e, ξ, tol, max_iter):
 
     """
     z1_float = z1.astype(float)
-
+    
     for method in ['L-BFGS-B','BFGS','CG']:
         model = minimize(_objective, 
                          np.ones(n_fos),
@@ -229,6 +251,33 @@ def _minimize_objective(f, g, z0, z1, state, n_fos, e, ξ, tol, max_iter):
     v = np.exp(model.fun)
     λ = model.x
     return v, λ
+
+
+def _minimize_objective_quadratic(f, g, z0, z1, state, n_fos, v, ξ, tol, max_iter):
+    """
+    Use scipy.minimize (L-BFGS-B, BFGS or CG) to solve the minimization problem.
+
+    """
+    z1_float = z1.astype(float)
+    
+    for method in ['L-BFGS-B','BFGS','CG']:
+        model = minimize(_objective_quadratic, 
+                         np.ones(n_fos),
+                         args = (f, g, z0, z1_float, state, n_fos, v, ξ),
+                         method = method,
+                         tol = tol,
+                         options = {'maxiter': max_iter})
+        if model.success:
+            break
+    if model.success == False:
+        print("---Warning: the convex solver fails when ξ = %s, tolerance = %s--- " % (ξ, tol))
+        print(model.message)
+
+    # Calculate v+μ, λ_1 and λ_2 (here λ_1 is of dimension self.n_f)
+    v_μ = - model.fun
+    λ_1 = model.x[:-1]
+    λ_2 = model.x[-1]
+    return v_μ, λ_1, λ_2
 
 
 class OptimizeResult(dict):
