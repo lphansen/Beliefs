@@ -1,63 +1,11 @@
+"""
+This module provides the solution to the minimization problem in the notebook.
+
+"""
 import numpy as np
 from scipy.optimize import minimize
 from numba import njit
 
-
-def find_ξ(solver_args, min_RE, pct, initial_guess=1., interval=(0, 100.), tol=1e-5, max_iter=100):
-    """
-    This function finds the ξ that leads to x% increase to the
-    relative entropy compared to the minimum.
-
-    Parameters
-    ----------
-    solver_args : tuple
-        Arguments that will be passed into the solver, including
-        (f, g, z0, z1, n_states, tol, max_iter)
-    min_RE : float
-        Minimal relative entropy
-    pct : float
-        Percent increase to the relative entropy.
-        i.e. pct=0.2 means 20% increase to the entropy.
-    initial_guess : float
-        Initial guess for ξ.
-    interval : tuple of ints
-        Interval of ξ that we search over.
-    tol : float
-        Tolerance parameter on ξ.
-    max_iter : int
-        Maximum number of iterations.
-
-    Returns
-    -------
-    ξ : float
-        The ξ that corresponds to x% increase to the entropy.
-    
-    """
-    error = -1.
-    count = 0
-    ξ = initial_guess
-    lower_bound, upper_bound = interval
-    while np.abs(error) > tol and count < max_iter:
-        result = solve(solver_args[0], solver_args[1], solver_args[2],
-                       solver_args[3], ξ, solver_args[4], solver_args[5],
-                       solver_args[6])
-        RE = result['RE']
-        error = RE/min_RE - pct - 1
-        if np.abs(error) < tol or lower_bound == upper_bound:
-            break
-        if error < 0.:
-            upper_bound = ξ
-            ξ = (lower_bound + ξ)/2.
-        else:
-            lower_bound = ξ
-            ξ = (ξ + upper_bound)/2.
-        count += 1
-    if count == max_iter:
-        print('Warning: maximal iterations reached. Error = %s' % (RE/min_RE - pct - 1))
-    if lower_bound == upper_bound:
-        print('Warning: lower bound is equal to upper bound. Please reset tolerance level.')
-    return ξ    
-    
 
 def solve(f, g, z0, z1, ξ, n_states, tol=1e-9, max_iter=1000):
     """
@@ -166,6 +114,61 @@ def solve(f, g, z0, z1, ξ, n_states, tol=1e-9, max_iter=1000):
                           'moment_empirical':moment_empirical,
                           'N':N})
     return res
+
+
+def find_ξ(solver_args, min_RE, pct, initial_guess=1., interval=(0, 100.), tol=1e-5, max_iter=100):
+    """
+    This function finds the ξ that leads to x% increase to the
+    relative entropy compared to the minimum.
+
+    Parameters
+    ----------
+    solver_args : tuple
+        Arguments (except for ξ) to be passed into the solver, including
+        (f, g, z0, z1, n_states, tol, max_iter)
+    min_RE : float
+        Minimal relative entropy.
+    pct : float
+        Percent increase to the relative entropy.
+        i.e. pct=0.2 means 20% increase to the entropy.
+    initial_guess : float
+        Initial guess for ξ.
+    interval : tuple of ints
+        Interval of ξ that we search over.
+    tol : float
+        Tolerance parameter on ξ.
+    max_iter : int
+        Maximum number of iterations.
+
+    Returns
+    -------
+    ξ : float
+        The ξ that corresponds to x% increase to the entropy.
+    
+    """
+    error = -1.
+    count = 0
+    ξ = initial_guess
+    lower_bound, upper_bound = interval
+    f, g, z0, z1, n_states, solver_tol, solver_max_iter = solver_args
+    while np.abs(error) > tol and count < max_iter:
+        result = solve(f, g, z0, z1, ξ, n_states, solver_tol, solver_max_iter)
+        RE = result['RE']
+        error = RE/min_RE - pct - 1
+        if np.abs(error) < tol or lower_bound == upper_bound:
+            break
+        if error < 0.:
+            upper_bound = ξ
+            ξ = (lower_bound + ξ)/2.
+        else:
+            lower_bound = ξ
+            ξ = (ξ + upper_bound)/2.
+        count += 1
+    if count == max_iter:
+        print('Warning: maximal iterations reached. Error = %s' % (RE/min_RE - pct - 1))
+    if lower_bound == upper_bound:
+        print('Warning: lower bound is equal to upper bound. Please reset tolerance level.')
+    return ξ
 
 
 @njit

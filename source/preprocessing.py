@@ -1,19 +1,22 @@
+"""
+This module prepares data for the examples used in plots.py and the notebook.
+
+"""
 import numpy as np
 import pandas as pd
 
 
-def preprocess_data():
+def preprocess_data(n_states):
     """
     Load datasets and initialize the solver.
     
-    """        
+    """
     # Load data
     data = pd.read_csv('./data/UnitaryData.csv')
     pd_lag = np.array(data['d.p'])
 
     # Specify dimensions
     n_fos = 4
-    n_states = 3
 
     # Calculate indicator based on today's pd ratio
     z0_float = np.empty((data.shape[0], n_states))
@@ -32,5 +35,11 @@ def preprocess_data():
     for state in range(n_states):
         f[:,(n_fos * state):(n_fos * (state+1))] = x * z0[:, state:(state+1)]
     log_Rw = np.array(data['log.RW'])[:-1]
+    
+    # Compute risk free rate and excess returns
+    Rf = (x[:,0]+1.)*np.exp(log_Rw)
+    Rm = x[:,1]*np.exp(log_Rw) + Rf
+    SMB = x[:,2]*np.exp(log_Rw) + Rf
+    HML = x[:,3]*np.exp(log_Rw) + Rf
 
-    return f, log_Rw, z0, z1
+    return f, log_Rw, z0, z1, Rf, Rm, SMB, HML
