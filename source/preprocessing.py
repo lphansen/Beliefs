@@ -8,8 +8,23 @@ import pandas as pd
 
 def preprocess_data(n_states):
     """
-    Load datasets and initialize the solver.
+    Clean data.
     
+    Parameters
+    ----------
+    n_states : int
+        Number of states for the d/p ratio. The division is based on
+        percentile of the empirical d/p data.
+    
+    Returns
+    -------
+    f : (n, n_f) ndarray
+        Moment conditions.
+    log_Rw, Rf, Rm, SMB, HML : (n,) ndarrays
+        Log return and gross returns.
+    z0, z1 : (n, n_states) ndarrays
+        Today's and tomorrow's state vectors.
+
     """
     # Load data
     data = pd.read_csv('./data/UnitaryData.csv')

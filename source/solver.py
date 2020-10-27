@@ -5,6 +5,7 @@ This module provides the solution to the minimization problem in the notebook.
 import numpy as np
 from scipy.optimize import minimize
 from numba import njit
+from source.utilities import stationary_prob
 
 
 def solve(f, g, z0, z1, ξ, n_states, tol=1e-9, max_iter=1000):
@@ -64,14 +65,14 @@ def solve(f, g, z0, z1, ξ, n_states, tol=1e-9, max_iter=1000):
     for i in range(n_states):
         for j in range(n_states):
             P[i, j] = np.mean(z1[z0[:, i]][:, j])
-    π = _stationary_prob(P)
+    π = stationary_prob(P)
 
     # Distorted transition matrix and stationary distribution
     P_tilde = np.zeros((n_states, n_states))
     for i in range(n_states):
         for j in range(n_states):
             P_tilde[i, j] = np.mean(N[z0[:, i]] * z1[z0[:, i]][:, j])
-    π_tilde = _stationary_prob(P_tilde)
+    π_tilde = stationary_prob(P_tilde)
 
     # Conditional and unconditional relative entropy
     RE_cond = np.zeros(n_states)
@@ -228,15 +229,6 @@ def _minimize_objective(f, g, z0, z1, state, n_fos, e, ξ, tol, max_iter):
     v = np.exp(model.fun)
     λ = model.x
     return v, λ
-
-
-def _stationary_prob(P):
-    A = P.T - np.eye(P.shape[0])
-    A[-1] = np.ones(P.shape[0])
-    B = np.zeros(P.shape[0])
-    B[-1] = 1.
-    π = np.linalg.solve(A, B)
-    return π
 
 
 class OptimizeResult(dict):

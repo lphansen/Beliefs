@@ -1,5 +1,5 @@
 """
-This module produces plots for the notebook.
+This module produces plots and tables for the notebook.
 
 """
 import numpy as np
@@ -225,3 +225,86 @@ def box_chart(result_min, result_lower, result_upper, save=False):
 
     if save:
         fig.savefig("plot.pdf")
+
+
+def print_results(result_lower, result_upper):
+    n_states = result_lower['P'].shape[0]
+    # Print iteration information
+    print("--- Iteration information ---")
+    print("Number of iterations (lower bound problem): %s" % (result_lower['count']))
+    print("Number of iterations (upper bound problem): %s" % (result_upper['count']))
+
+    # Print converged parameter results
+    print("\n")
+    print("--- Converged values for the lower bound problem ---")
+    print("ϵ: %s" % np.round(result_lower['ϵ'],2))
+    print("e: %s" % np.round(result_lower['e'],2))
+    print("λ: %s" % np.round(result_lower['λ'],2))
+
+    print(" ")
+    print("--- Converged values for the upper bound problem ---")
+    print("ϵ: %s" % np.round(result_upper['ϵ'],2))
+    print("e: %s" % np.round(result_upper['e'],2))
+    print("λ: %s" % np.round(result_upper['λ'],2))
+
+    # Print transition probability matrix under the original empirical probability
+    print("\n")
+    print("--- Transition Probability Matrix (Original) ---")
+    print(np.round(result_lower['P'],2))
+
+    # Print transition probability matrix under distorted probability, lower bound
+    print(" ")
+    print("--- Transition Probability Matrix (Distorted, lower bound problem) ---")
+    print(np.round(result_lower['P_tilde'],2))
+
+    # Print transition probability matrix under distorted probability, upper bound
+    print(" ")
+    print("--- Transition Probability Matrix (Distorted, upper bound problem) ---")
+    print(np.round(result_upper['P_tilde'],2))
+
+    # Print stationary distribution under the original empirical probability
+    print("\n")
+    print("--- Stationary Distribution (Original) ---")
+    print(np.round(result_lower['π'],2))
+
+    # Print stationary distribution under distorted probability, lower bound
+    print(" ")
+    print("--- Stationary Distribution (Distorted, lower bound problem) ---")
+    print(np.round(result_lower['π_tilde'],2))
+
+    # Print stationary distribution under distorted probability, upper bound
+    print(" ")
+    print("--- Stationary Distribution (Distorted, upper bound problem) ---")
+    print(np.round(result_upper['π_tilde'],2))
+
+    # Print relative entropy
+    print("\n")
+    print("--- Relative Entropy (lower bound problem) ---")
+    for state in np.arange(1, n_states+1):
+        print(f"E[NlogN|state {state}] = {np.round(result_lower['RE_cond'][state-1],4)}")
+    print("E[NlogN]         = %s " % np.round(result_lower['RE'],4))
+
+    # Print relative entropy
+    print(" ")
+    print("--- Relative Entropy (Upper bound problem) ---")
+    for state in np.arange(1, n_states+1):
+        print(f"E[NlogN|state {state}] = {np.round(result_upper['RE_cond'][state-1],4)}")
+    print("E[NlogN]         = %s " % np.round(result_upper['RE'],4))
+
+    # Print conditional moment & bounds
+    print("\n")
+    print("--- Moment (Empirical, annualized, %) ---")
+    for state in np.arange(1, n_states+1):
+        print(f"E[g(X)|state {state}] = {np.round(result_lower['moment_empirical_cond'][state-1]*400,2)}")
+    print("E[g(X)]  = %s " % (np.round(result_lower['moment_empirical']*400,2)))
+    print(" ")
+    print("--- Moment (Lower bound, annualized, %) ---")
+    for state in np.arange(1, n_states+1):
+        print(f"E[Ng(X)|state {state}] = {np.round(result_lower['moment_bound_cond'][state-1]*400,2)}")
+    print("E[Ng(X)] = %s " % (np.round(result_lower['moment_bound']*400,2)))
+    print(" ")
+    print("--- Moment (Upper bound, annualized, %) ---")
+    for state in np.arange(1, n_states+1):
+        print(f"E[Ng(X)|state {state}] = {np.round(-result_upper['moment_bound_cond'][state-1]*400,2)}")
+    print("E[Ng(X)] = %s " % (np.round(-result_upper['moment_bound']*400,2)))
+    print("\n")
