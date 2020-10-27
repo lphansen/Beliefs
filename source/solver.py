@@ -1,23 +1,82 @@
 import numpy as np
 from scipy.optimize import minimize
+from numba import njit
 
 
-def optimize(f, g, indicator_z0, indicator_z1, ξ, n_states, tol=1e-9, max_iter=1000):
+def find_ξ(solver_args, min_RE, pct, initial_guess=1., interval=(0, 100.), tol=1e-5, max_iter=100):
+    """
+    This function finds the ξ that leads to x% increase to the
+    relative entropy compared to the minimum.
+
+    Parameters
+    ----------
+    solver_args : tuple
+        Arguments that will be passed into the solver, including
+        (f, g, z0, z1, n_states, tol, max_iter)
+    min_RE : float
+        Minimal relative entropy
+    pct : float
+        Percent increase to the relative entropy.
+        i.e. pct=0.2 means 20% increase to the entropy.
+    initial_guess : float
+        Initial guess for ξ.
+    interval : tuple of ints
+        Interval of ξ that we search over.
+    tol : float
+        Tolerance parameter on ξ.
+    max_iter : int
+        Maximum number of iterations.
+
+    Returns
+    -------
+    ξ : float
+        The ξ that corresponds to x% increase to the entropy.
+    
+    """
+    error = -1.
+    count = 0
+    ξ = initial_guess
+    lower_bound, upper_bound = interval
+    while np.abs(error) > tol and count < max_iter:
+        result = solve(solver_args[0], solver_args[1], solver_args[2],
+                       solver_args[3], ξ, solver_args[4], solver_args[5],
+                       solver_args[6])
+        RE = result['RE']
+        error = RE/min_RE - pct - 1
+        if np.abs(error) < tol or lower_bound == upper_bound:
+            break
+        if error < 0.:
+            upper_bound = ξ
+            ξ = (lower_bound + ξ)/2.
+        else:
+            lower_bound = ξ
+            ξ = (ξ + upper_bound)/2.
+        count += 1
+    if count == max_iter:
+        print('Warning: maximal iterations reached. Error = %s' % (RE/min_RE - pct - 1))
+    if lower_bound == upper_bound:
+        print('Warning: lower bound is equal to upper bound. Please reset tolerance level.')
+    return ξ    
+    
+
+def solve(f, g, z0, z1, ξ, n_states, tol=1e-9, max_iter=1000):
     """
     This function implements the iteration scheme in the Computational
     Strategy section in the Belief_Notebook. It assumes a n-state Markov
     process for Z.
-    
+
     Parameters
     ----------
-    f : (N, n_f) ndarray
+    f : (n, n_f) ndarray
         f that satisfies E[N_1f(X_1)|Z_0] = 0.
-    g : (N, 1) ndarray
+    g : (n, 1) ndarray
         The function to be bounded.
-    indicator_z0 : (N, n_states) ndarray
-        Indicator function of Z_0 for each sample point.
-    indicator_z1 : (N, n_states) ndarray
-        Indicator function of Z_1 for each sample point.
+    z0 : (n, n_states) ndarray
+        Today's state vector.
+        For example, (1,0,0) is state 1, (0,1,0) is state 2.
+    z1 : (n, n_states) ndarray
+        Tomorrow's state vector.
+        For example, (1,0,0) is state 1, (0,1,0) is state 2.
     ξ : float
         Coefficient on relative entropy constraint.
     n_states : int
@@ -26,10 +85,9 @@ def optimize(f, g, indicator_z0, indicator_z1, ξ, n_states, tol=1e-9, max_iter=
         Tolerance parameter for the iteration.
     max_iter : int
         Maximum number of iterations.
-    
-    
+
     Returns
-    -------        
+    -------
     res : OptimizeResult
         Class that stores the results of the optimization.
     """
@@ -38,59 +96,57 @@ def optimize(f, g, indicator_z0, indicator_z1, ξ, n_states, tol=1e-9, max_iter=
     e = np.ones(n_states)
     v = np.zeros(n_states)
     λ = np.zeros(f.shape[1])
-    n_fos = int(f.shape[1]/n_states)
-    
+    n_fos = int(f.shape[1]/n_states) # Number of constraints on each state
+
     while error > tol:
         for state in range(n_states):
             v[state], λ[state*n_fos: (state+1)*n_fos]\
-            = _minimize_objective(f, g, indicator_z0, indicator_z1, state, n_fos, e, ξ, tol, max_iter)
+            = _minimize_objective(f, g, z0, z1, state, n_fos, e, ξ, tol, max_iter)
         e_old = e
         ϵ = v[0]
         e = v/v[0]
         error = np.max(np.abs(e - e_old))
         count += 1
 
-    # N_1 and E[N_1 | state k]
-    N = 1./ϵ * np.exp(-g/ξ+f@λ) * (indicator_z1@e) / (indicator_z0@e)
-    E_N_cond = np.zeros(n_states)
-    for state in range(n_states):
-        E_N_cond[state] = np.mean(N[indicator_z0[:, state]])
-    
+    # N_1
+    N = 1./ϵ * np.exp(-g/ξ+f@λ) * (z1@e) / (z0@e)
+
     # Empirical transition matrix and stationary distribution
     P = np.zeros((n_states, n_states))
     for i in range(n_states):
         for j in range(n_states):
-            P[i, j] = np.mean(indicator_z1[indicator_z0[:, i]][:, j]) 
+            P[i, j] = np.mean(z1[z0[:, i]][:, j])
     π = _stationary_prob(P)
 
     # Distorted transition matrix and stationary distribution
     P_tilde = np.zeros((n_states, n_states))
     for i in range(n_states):
         for j in range(n_states):
-            P_tilde[i, j] = np.mean(N[indicator_z0[:, i]] * indicator_z1[indicator_z0[:, i]][:, j])
+            P_tilde[i, j] = np.mean(N[z0[:, i]] * z1[z0[:, i]][:, j])
     π_tilde = _stationary_prob(P_tilde)
-    
+
     # Conditional and unconditional relative entropy
     RE_cond = np.zeros(n_states)
     for state in range(n_states):
-        RE_cond[state] = np.mean(N[indicator_z0[:, state]] * np.log(N[indicator_z0[:, state]]))
+        RE_cond[state] = np.mean(N[z0[:, state]] * np.log(N[z0[:, state]]))
     RE = RE_cond @ π_tilde
-    
+
     # Conditional and unconditional moment bounds for g
     moment_bound_cond = np.zeros(n_states)
     for state in range(n_states):
-        moment_bound_cond[state] = np.mean(N[indicator_z0[:, state]]* g[indicator_z0[:, state]])
+        moment_bound_cond[state] = np.mean(N[z0[:, state]]* g[z0[:, state]])
     moment_bound = moment_bound_cond @ π_tilde
 
     # Conditional and unconditional empirical moment for g
     moment_empirical_cond = np.zeros(n_states)
     for state in range(n_states):
-        moment_empirical_cond[state] = np.mean(g[indicator_z0[:, state]])
+        moment_empirical_cond[state] = np.mean(g[z0[:, state]])
     moment_empirical = np.mean(g)
 
-    # Calculate v
-    v_0 = -ξ * np.log(e)    
-    
+    # Calculate v and μ
+    v_0 = - ξ * np.log(e)
+    μ = - ξ * np.log(ϵ)
+
     res = OptimizeResult({'ϵ':ϵ,
                           'e':e,
                           'λ':λ,
@@ -100,7 +156,6 @@ def optimize(f, g, indicator_z0, indicator_z1, ξ, n_states, tol=1e-9, max_iter=
                           'v_0':v_0,
                           'RE_cond':RE_cond,
                           'RE':RE,
-                          'E_N_cond':E_N_cond,
                           'P':P,
                           'π':π,
                           'P_tilde':P_tilde,
@@ -113,32 +168,32 @@ def optimize(f, g, indicator_z0, indicator_z1, ξ, n_states, tol=1e-9, max_iter=
     return res
 
 
-@jit
-def _objective(λ, f, g, indicaotor_z0, indicator_z1_float,
+@njit
+def _objective(λ, f, g, z0, z1_float,
                state, n_fos, e, ξ):
     """
     The objective function.
     
     """
-    selector = indicaotor_z0[:,state]
+    selector = z0[:, state]
     term_1 = -g[selector]/ξ
-    term_2 = f[:,state*n_fos: (state+1)*n_fos][selector]@λ
-    term_3 = np.log(pd_indicator_float[selector]@e)
+    term_2 = f[:, state*n_fos: (state+1)*n_fos][selector]@λ
+    term_3 = np.log(z1_float[selector]@e)
     x = term_1 + term_2 + term_3
     # Use "max trick" to improve accuracy
     a = x.max()
     return np.log(np.mean(np.exp(x-a))) + a    
 
 
-@jit
-def _objective_gradient(λ, f, g, indicaotor_z0, indicator_z1_float,
+@njit
+def _objective_gradient(λ, f, g, z0, z1_float,
                         state, n_fos, e, ξ):
     """
     Gradient of the objective function.
     
     """
-    selector = pd_lag_indicator[:,state]
-    temp1 = -g[selector]/ξ + f[:,state*n_fos:(state+1)*n_fos][selector]@λ + np.log(pd_indicator_float[selector]@e)
+    selector = z0[:,state]
+    temp1 = -g[selector]/ξ + f[:,state*n_fos:(state+1)*n_fos][selector]@λ + np.log(z1_float[selector]@e)
     temp2 = f[:,state*n_fos:(state+1)*n_fos][selector]*(np.exp(temp1.reshape((len(temp1),1)))/np.mean(np.exp(temp1)))
     temp3 = np.empty(temp2.shape[1])
     for i in range(temp2.shape[1]):
@@ -146,17 +201,17 @@ def _objective_gradient(λ, f, g, indicaotor_z0, indicator_z1_float,
     return temp3         
 
 
-def _minimize_objective(f, g, indicator_z0, indicator_z1, state, n_fos, e, ξ, tol, max_iter):
+def _minimize_objective(f, g, z0, z1, state, n_fos, e, ξ, tol, max_iter):
     """
     Use scipy.minimize (L-BFGS-B, BFGS or CG) to solve the minimization problem.
 
     """
-    indicator_z1_float = indicator_z1.astype(float)
+    z1_float = z1.astype(float)
 
     for method in ['L-BFGS-B','BFGS','CG']:
         model = minimize(_objective, 
                          np.ones(n_fos),
-                         args = (f, g, indicaotor_z0, indicator_z1_float, state, n_fos, e, ξ)
+                         args = (f, g, z0, z1_float, state, n_fos, e, ξ),
                          method = method,
                          jac = _objective_gradient,
                          tol = tol,
@@ -185,36 +240,39 @@ class OptimizeResult(dict):
     """ Represents the optimization result.
     Attributes
     ----------
-    x : ndarray
-        The solution of the optimization.
-    success : bool
-        Whether or not the optimizer exited successfully.
-    status : int
-        Termination status of the optimizer. Its value depends on the
-        underlying solver. Refer to `message` for details.
-    message : str
-        Description of the cause of the termination.
-    fun, jac, hess: ndarray
-        Values of objective function, its Jacobian and its Hessian (if
-        available). The Hessians may be approximations, see the documentation
-        of the function in question.
-    hess_inv : object
-        Inverse of the objective function's Hessian; may be an approximation.
-        Not available for all solvers. The type of this attribute may be
-        either np.ndarray or scipy.sparse.linalg.LinearOperator.
-    nfev, njev, nhev : int
-        Number of evaluations of the objective functions and of its
-        Jacobian and Hessian.
-    nit : int
-        Number of iterations performed by the optimizer.
-    maxcv : float
-        The maximum constraint violation.
-    Notes
-    -----
-    There may be additional attributes not listed above depending of the
-    specific solver. Since this class is essentially a subclass of dict
-    with attribute accessors, one can see which attributes are available
-    using the `keys()` method.
+    ξ : float
+        The coefficient of relative entropy constraint that users provide.
+    ϵ, μ : float
+        Model solution.
+    e, v_0 : (n_states,) ndarray
+        Model solution.
+    λ : (n_f,) ndarray
+        Model solution.
+    count : int
+        Number of iterations.
+    N : (n,) ndarray
+        One-period change of measure.
+    RE_cond : (n_states,) ndarray
+        Implied conditional relative entropy.
+    RE : float
+        Unconditional relative entropy.
+    P : (n_states, n_states) ndarray
+        Empirical transition probabilities.
+    P_tilde : (n_states, n_states) ndarray
+        Distorted transition probabilities.
+    π : (n_states,) ndarray
+        Empirical stationary probabilities.
+    π_tilde : (n_states,) ndarray
+        Distorted stationary probabilities.
+    moment_empirical : float
+        Empirical moment of g.
+    moment_bound : float
+        Moment bound on g.
+    moment_empirical_cond : (n_states,) ndarray
+        Empirical conditional moment of g.
+    moment_bound_cond : (n_states,) ndarray
+        Conditional moment bound on g.
+
     """
 
     def __getattr__(self, name):

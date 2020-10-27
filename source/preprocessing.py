@@ -16,22 +16,21 @@ def preprocess_data():
     n_states = 3
 
     # Calculate indicator based on today's pd ratio
-    pd_lag_indicator_float = np.empty((data.shape[0], n_states))
+    z0_float = np.empty((data.shape[0], n_states))
     tercile = np.quantile(pd_lag, np.arange(n_states + 1)/n_states)
     for i in range(n_states):
-        pd_lag_indicator_float[:,i] = (pd_lag >= tercile[i]) & (pd_lag <= tercile[i+1])
-    pd_lag_indicator = pd_lag_indicator_float.astype(bool)
+        z0_float[:,i] = (pd_lag >= tercile[i]) & (pd_lag <= tercile[i+1])
+    z0 = z0_float.astype(bool)
 
     # Calculate indicator for tomorrow's pd ratio
-    pd_indicator = pd_lag_indicator[1:]
-    pd_indicator_float = pd_indicator.astype(float)
+    z1 = z0[1:]
 
     # Drop last row since we do not have tomorrow's pd ratio at that point
-    pd_lag_indicator = pd_lag_indicator[:-1]
-    X = np.array(data[['Rf','Rm-Rf','SMB','HML']])[:-1]
-    f = np.empty((X.shape[0], X.shape[1] * n_states))
+    z0 = z0[:-1]
+    x = np.array(data[['Rf','Rm-Rf','SMB','HML']])[:-1]
+    f = np.empty((x.shape[0], x.shape[1] * n_states))
     for state in range(n_states):
-        f[:,(n_fos * state):(n_fos * (state+1))] = X * pd_lag_indicator[:, state:(state+1)]
+        f[:,(n_fos * state):(n_fos * (state+1))] = x * z0[:, state:(state+1)]
     log_Rw = np.array(data['log.RW'])[:-1]
 
-    return f, log_Rw
+    return f, log_Rw, z0, z1
