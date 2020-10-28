@@ -14,7 +14,7 @@ def bound_ratio(find_ξ_args, g1, g2, ζ, lower=True, result_type=0):
     Parameters
     ----------
     find_ξ_args : tuple
-        Arguments (except for g in solver_args and min_RE) to be passed into find_ξ,
+        Arguments (except for g in solver_args and min_div) to be passed into find_ξ,
         including (solver_args, pct, initial_guess, interval, tol, max_iter).
         If pct == 0., then the function will use ξ = 100.
     g1 : (n,) ndarray
@@ -47,19 +47,24 @@ def bound_ratio(find_ξ_args, g1, g2, ζ, lower=True, result_type=0):
         g = g1 - ζ*g2
     else:
         g = -(g1 - ζ*g2)
-    # f, z0, z1, tol, max_iter
+    # f, z0, z1, quadratic, tol, max_iter
     f = find_ξ_args[0][0]
     z0 = find_ξ_args[0][1]
     z1 = find_ξ_args[0][2]
     n_states = z1.shape[1]
-    solver_tol = find_ξ_args[0][3]
-    solver_max_iter = find_ξ_args[0][4]
-    solver_args = (f, g, z0, z1, solver_tol, solver_max_iter)
-    result = solve(f, g, z0, z1, 100., solver_tol, solver_max_iter)
+    quadratic = find_ξ_args[0][3]
+    solver_tol = find_ξ_args[0][4]
+    solver_max_iter = find_ξ_args[0][5]
+    solver_args = (f, g, z0, z1, quadratic, solver_tol, solver_max_iter)
+    result = solve(f, g, z0, z1, 100., quadratic, solver_tol, solver_max_iter)
     if find_ξ_args[1] != 0:
-        ξ = find_ξ(solver_args, result['RE'], find_ξ_args[1], find_ξ_args[2],
+        if quadratic:
+            min_div = result['QD']
+        else:
+            min_div = result['RE']
+        ξ = find_ξ(solver_args, min_div, find_ξ_args[1], find_ξ_args[2],
                    find_ξ_args[3], find_ξ_args[4], find_ξ_args[5])
-        result = solve(f, g, z0, z1, ξ, solver_tol, solver_max_iter)
+        result = solve(f, g, z0, z1, ξ, quadratic, solver_tol, solver_max_iter)
 
     # Calculate ratio, empirical
     # Term 1

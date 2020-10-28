@@ -67,11 +67,18 @@ def chernoff_entropy(P, P_tilde, grid_size):
 
 
 @njit
-def construct_transition_matrix(f, g, z0, z1, ϵ, ξ, λ, e, P_z, P_z_tilde):
+def construct_transition_matrix(f, g, z0, z1, ξ, P_z, P_z_tilde, λ, v, μ, quadratic):
     """
     Construct empirical transition matrix.
-    
+
     """
+    n_states = z0.shape[1]
+    if quadratic:
+        λ_1 = λ[:-n_states]
+        λ_2 = λ[-n_states:]
+    else:
+        e = np.exp(-v/ξ)
+        ϵ = np.exp(-μ/ξ)
     n_X = f.shape[0]
     n_Z = z0.shape[1]
     Z_states = np.zeros(z0.shape[0])
@@ -93,7 +100,8 @@ def construct_transition_matrix(f, g, z0, z1, ϵ, ξ, λ, e, P_z, P_z_tilde):
         temp = (Z_states[i], Z_states_next[i], i)
         data.append(temp)
 
-    # Transition matrix, order: (original X, Z state 0), (original X, Z state 1), (original X, Z state 2)
+    # Transition matrix, order: (original X, Z state 0),
+    # (original X, Z state 1), (original X, Z state 2)
     P       = np.zeros((n_X*n_Z, n_X*n_Z))
     P_tilde = np.zeros((n_X*n_Z, n_X*n_Z))
 
@@ -105,12 +113,13 @@ def construct_transition_matrix(f, g, z0, z1, ϵ, ξ, λ, e, P_z, P_z_tilde):
             X_state_next = j%n_X
             if (Z_state, Z_state_next, X_state_next) in data:
                 P[i, j] = 1. / Z_all[Z_state]
-                N = 1./ϵ * np.exp(-g[X_state_next]/ξ\
-                                  +f[X_state_next]@λ)\
-                    * e[Z_state_next] / e[Z_state]
+                if quadratic:
+                    N = -1./ξ * (g[X_state_next]+v[Z_state_next]\
+                                 +f[X_state_next]@λ_1+λ_2[Z_state]) + 0.5  
+                    if N < 0 : N = 0
+                else:
+                    N = 1./ϵ * np.exp(-g[X_state_next]/ξ+f[X_state_next]@λ)\
+                        * e[Z_state_next] / e[Z_state]
                 P_tilde[i, j] = P[i, j]*N
-    
+
     return P, P_tilde
-    
-    
-    

@@ -21,8 +21,8 @@ def objective_vs_ξ(n_states):
 
     for i in range(len(ξ_grid)):
         ξ = ξ_grid[i]
-        temp = solve(f=f, g=log_Rw, z0=z0, z1=z1, 
-                     ξ=ξ, tol=1e-9, max_iter=1000)
+        temp = solve(f=f, g=log_Rw, z0=z0, z1=z1, ξ=ξ,
+                     quadratic=False, tol=1e-9, max_iter=1000)
         results_lower[i] = temp
 
     μs_lower = np.array([result['μ'] for result in results_lower])
@@ -55,11 +55,11 @@ def entropy_moment_bounds(n_states):
 
     for i in range(len(ξ_grid)):
         ξ = ξ_grid[i]
-        temp = solve(f=f, g=log_Rw, z0=z0, z1=z1, 
-                     ξ=ξ, tol=1e-9, max_iter=1000)        
+        temp = solve(f=f, g=log_Rw, z0=z0, z1=z1, ξ=ξ,
+                     quadratic=False, tol=1e-9, max_iter=1000)        
         results_lower[i] = temp
-        temp = solve(f=f, g=-log_Rw, z0=z0, z1=z1, 
-                     ξ=ξ, tol=1e-9, max_iter=1000)          
+        temp = solve(f=f, g=-log_Rw, z0=z0, z1=z1, ξ=ξ,
+                     quadratic=False, tol=1e-9, max_iter=1000)          
         results_upper[i] = temp
 
     REs_lower = np.array([result['RE'] for result in results_lower])
@@ -227,7 +227,7 @@ def box_chart(result_min, result_lower, result_upper, save=False):
         fig.savefig("plot.pdf")
 
 
-def print_results(result_lower, result_upper):
+def print_results(result_lower, result_upper, quadratic=False):
     n_states = result_lower['P'].shape[0]
     # Print iteration information
     print("--- Iteration information ---")
@@ -237,14 +237,22 @@ def print_results(result_lower, result_upper):
     # Print converged parameter results
     print("\n")
     print("--- Converged values for the lower bound problem ---")
-    print("ϵ: %s" % np.round(result_lower['ϵ'],2))
-    print("e: %s" % np.round(result_lower['e'],2))
+    if quadratic:
+        print("μ: %s" % np.round(result_lower['μ'],2))
+        print("v: %s" % np.round(result_lower['v'],2))
+    else:
+        print("ϵ: %s" % np.round(result_lower['ϵ'],2))
+        print("e: %s" % np.round(result_lower['e'],2))
     print("λ: %s" % np.round(result_lower['λ'],2))
 
     print(" ")
     print("--- Converged values for the upper bound problem ---")
-    print("ϵ: %s" % np.round(result_upper['ϵ'],2))
-    print("e: %s" % np.round(result_upper['e'],2))
+    if quadratic:
+        print("μ: %s" % np.round(result_upper['μ'],2))
+        print("v: %s" % np.round(result_upper['v'],2))
+    else:
+        print("ϵ: %s" % np.round(result_upper['ϵ'],2))
+        print("e: %s" % np.round(result_upper['e'],2))
     print("λ: %s" % np.round(result_upper['λ'],2))
 
     # Print transition probability matrix under the original empirical probability
@@ -290,6 +298,21 @@ def print_results(result_lower, result_upper):
     for state in np.arange(1, n_states+1):
         print(f"E[NlogN|state {state}] = {np.round(result_upper['RE_cond'][state-1],4)}")
     print("E[NlogN]         = %s " % np.round(result_upper['RE'],4))
+    
+    if quadratic:
+        # Print quadratic divergence
+        print("\n")
+        print("--- Quadratic Divergence (lower bound problem) ---")
+        for state in np.arange(1, n_states+1):
+            print(f"state {state} : {np.round(result_lower['QD_cond'][state-1],4)}")
+        print("Unconditional         = %s " % np.round(result_lower['QD'],4))
+
+        # Print quadratic divergence
+        print(" ")
+        print("--- Quadratic Divergence (Upper bound problem) ---")
+        for state in np.arange(1, n_states+1):
+            print(f"state {state} : {np.round(result_upper['QD_cond'][state-1],4)}")
+        print("Unconditional         = %s " % np.round(result_upper['QD'],4))        
 
     # Print conditional moment & bounds
     print("\n")

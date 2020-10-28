@@ -65,6 +65,7 @@ def solve(f, g, z0, z1, ξ, quadratic=False, tol=1e-9, max_iter=1000):
             count += 1
         N = -1./ξ*(g+z1@v+f@λ_1+z0@λ_2) + 0.5
         N[N<0]=0
+        λ = np.concatenate((λ_1, λ_2))
     else:
         v = np.zeros(n_states)
         e = np.ones(n_states)
@@ -85,43 +86,14 @@ def solve(f, g, z0, z1, ξ, quadratic=False, tol=1e-9, max_iter=1000):
     if count == max_iter:
         print('Warning: maximal iterations reached.')
 
-    # Empirical transition matrix and stationary distribution
-    P = np.zeros((n_states, n_states))
-    for i in range(n_states):
-        for j in range(n_states):
-            P[i, j] = np.mean(z1[z0[:, i]][:, j])
-    π = stationary_prob(P)
+    P, P_tilde, π, π_tilde, RE, RE_cond, moment_bound,\
+    moment_bound_cond, moment_empirical, moment_empirical_cond = _compute_stats(z0, z1, g, N)
 
-    # Distorted transition matrix and stationary distribution
-    P_tilde = np.zeros((n_states, n_states))
-    for i in range(n_states):
-        for j in range(n_states):
-            P_tilde[i, j] = np.mean(N[z0[:, i]] * z1[z0[:, i]][:, j])
-    π_tilde = stationary_prob(P_tilde)
-
-    # Conditional and unconditional relative entropy
-    RE_cond = np.zeros(n_states)
-    for state in range(n_states):
-        RE_cond[state] = np.mean(N[z0[:, state]] * np.log(N[z0[:, state]]))
-    RE = RE_cond @ π_tilde
-
-    # Conditional and unconditional moment bounds for g
-    moment_bound_cond = np.zeros(n_states)
-    for state in range(n_states):
-        moment_bound_cond[state] = np.mean(N[z0[:, state]]* g[z0[:, state]])
-    moment_bound = moment_bound_cond @ π_tilde
-
-    # Conditional and unconditional empirical moment for g
-    moment_empirical_cond = np.zeros(n_states)
-    for state in range(n_states):
-        moment_empirical_cond[state] = np.mean(g[z0[:, state]])
-    moment_empirical = np.mean(g)
-
-    res = OptimizeResult({'ϵ':ϵ,
-                          'λ':λ,
+    res = OptimizeResult({'μ':μ,
                           'count':count,
                           'ξ':ξ,
                           'v':v,
+                          'λ':λ,
                           'RE_cond':RE_cond,
                           'RE':RE,
                           'P':P,
@@ -143,8 +115,7 @@ def solve(f, g, z0, z1, ξ, quadratic=False, tol=1e-9, max_iter=1000):
         res['QD_cond'] = div_cond
     else:
         res['e'] = e
-        res['μ'] = μ
-
+        res['ϵ'] = ϵ
     return res
 
 
@@ -207,6 +178,51 @@ def find_ξ(solver_args, min_div, pct, initial_guess=1., interval=(0, 100.), tol
 
 
 @njit
+def _compute_stats(z0, z1, g, N):
+    n_states = z0.shape[1]
+    # Empirical transition matrix and stationary distribution
+    P = np.zeros((n_states, n_states))
+    for i in range(n_states):
+        for j in range(n_states):
+            P[i, j] = np.mean(z1[z0[:, i]][:, j])
+    π = stationary_prob(P)
+
+    # Distorted transition matrix and stationary distribution
+    P_tilde = np.zeros((n_states, n_states))
+    for i in range(n_states):
+        for j in range(n_states):
+            P_tilde[i, j] = np.mean(N[z0[:, i]] * z1[z0[:, i]][:, j])
+    π_tilde = stationary_prob(P_tilde)
+
+    # Conditional and unconditional relative entropy
+    RE_cond = np.zeros(n_states)
+    for i in range(n_states):
+        N_temp = N[z0[:, i]]
+        NlogN_all = np.zeros(z0.shape[0])
+        for j in range(len(N_temp)):
+            if N_temp[j] == 0:
+                NlogN_all[j] = 0.
+            else:
+                NlogN_all[j] = N_temp[j]*np.log(N_temp[j])
+        RE_cond[i] = np.mean(NlogN_all)
+    RE = RE_cond @ π_tilde    
+
+    # Conditional and unconditional moment bounds for g
+    moment_bound_cond = np.zeros(n_states)
+    for state in range(n_states):
+        moment_bound_cond[state] = np.mean(N[z0[:, state]]* g[z0[:, state]])
+    moment_bound = moment_bound_cond @ π_tilde
+
+    # Conditional and unconditional empirical moment for g
+    moment_empirical_cond = np.zeros(n_states)
+    for state in range(n_states):
+        moment_empirical_cond[state] = np.mean(g[z0[:, state]])
+    moment_empirical = np.mean(g)    
+    
+    return P, P_tilde, π, π_tilde, RE, RE_cond, moment_bound,\
+        moment_bound_cond, moment_empirical, moment_empirical_cond
+
+@njit
 def _objective(λ, f, g, z0, z1_float, state, n_fos, e, ξ):
     """
     The objective function.
@@ -239,7 +255,7 @@ def _objective_gradient(λ, f, g, z0, z1_float,
 
 
 @njit
-def _objective_quadratic(λ, f, g, z0, z1_float, state, n_fos, e, ξ):
+def _objective_quadratic(λ, f, g, z0, z1_float, state, n_fos, v, ξ):
     """
     The objective function with quadratic specification of divergence.
     
@@ -248,14 +264,14 @@ def _objective_quadratic(λ, f, g, z0, z1_float, state, n_fos, e, ξ):
     λ_2 = λ[-1]
     selector = z0[:, state]
     term_1 = g[selector]
-    term_2 = z1[selector]@v
+    term_2 = z1_float[selector]@v
     term_3 = f[:, state*n_fos:(state+1)*n_fos][selector]@λ_1
     term_4 = λ_2
     x = (term_1+term_2+term_3+term_4)/(-ξ) + 0.5
     x[x<0] = 0
     result = np.mean(x**2)*(ξ/2.) + λ_2
     return result
-    
+
 
 def _minimize_objective(f, g, z0, z1, state, n_fos, e, ξ, tol, max_iter):
     """
@@ -292,7 +308,7 @@ def _minimize_objective_quadratic(f, g, z0, z1, state, n_fos, v, ξ, tol, max_it
     
     for method in ['L-BFGS-B','BFGS','CG']:
         model = minimize(_objective_quadratic, 
-                         np.ones(n_fos),
+                         np.ones(n_fos+1),
                          args = (f, g, z0, z1_float, state, n_fos, v, ξ),
                          method = method,
                          tol = tol,
@@ -320,8 +336,8 @@ class OptimizeResult(dict):
         Model solution.
     e, v : (n_states,) ndarray
         Model solution.
-    λ : (n_f,) ndarray
-        Model solution.
+    λ : (n_f,) or (n_f+n_states,) ndarray
+        Model solution. In quadratic specificaiton, it is [λ_1, λ_2]
     count : int
         Number of iterations.
     N : (n,) ndarray
