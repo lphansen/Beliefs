@@ -222,6 +222,7 @@ def _compute_stats(z0, z1, g, N):
     return P, P_tilde, π, π_tilde, RE, RE_cond, moment_bound,\
         moment_bound_cond, moment_empirical, moment_empirical_cond
 
+
 @njit
 def _objective(λ, f, g, z0, z1_float, state, n_fos, e, ξ):
     """
