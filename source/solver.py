@@ -48,7 +48,7 @@ def solve(f, g, z0, z1, ξ, quadratic=False, tol=1e-9, max_iter=1000):
     error = 1.
     count = 0
     n_fos = int(f.shape[1]/n_states) # Number of constraints on each state
-    
+
     if quadratic:
         v = np.zeros(n_states)
         v_μ = np.zeros(n_states)  # v+μ
@@ -63,6 +63,8 @@ def solve(f, g, z0, z1, ξ, quadratic=False, tol=1e-9, max_iter=1000):
             v = v_μ - v_μ[0]
             error = np.max(np.abs(v - v_old))
             count += 1
+        N = -1./ξ*(g+z1@v+f@λ_1+z0@λ_2) + 0.5
+        N[N<0]=0
     else:
         v = np.zeros(n_states)
         e = np.ones(n_states)
@@ -76,11 +78,12 @@ def solve(f, g, z0, z1, ξ, quadratic=False, tol=1e-9, max_iter=1000):
             e = v/v[0]
             error = np.max(np.abs(e - e_old))
             count += 1
+        N = 1./ϵ * np.exp(-g/ξ+f@λ) * (z1@e) / (z0@e)
+        v = - ξ * np.log(e)
+        μ = - ξ * np.log(ϵ)        
+
     if count == max_iter:
         print('Warning: maximal iterations reached.')
-
-    # N_1
-    N = 1./ϵ * np.exp(-g/ξ+f@λ) * (z1@e) / (z0@e)
 
     # Empirical transition matrix and stationary distribution
     P = np.zeros((n_states, n_states))
@@ -114,17 +117,11 @@ def solve(f, g, z0, z1, ξ, quadratic=False, tol=1e-9, max_iter=1000):
         moment_empirical_cond[state] = np.mean(g[z0[:, state]])
     moment_empirical = np.mean(g)
 
-    # Calculate v and μ
-    v_0 = - ξ * np.log(e)
-    μ = - ξ * np.log(ϵ)
-
     res = OptimizeResult({'ϵ':ϵ,
-                          'e':e,
                           'λ':λ,
                           'count':count,
                           'ξ':ξ,
-                          'μ':μ,
-                          'v_0':v_0,
+                          'v':v,
                           'RE_cond':RE_cond,
                           'RE':RE,
                           'P':P,
@@ -136,21 +133,33 @@ def solve(f, g, z0, z1, ξ, quadratic=False, tol=1e-9, max_iter=1000):
                           'moment_empirical_cond':moment_empirical_cond,
                           'moment_empirical':moment_empirical,
                           'N':N})
+
+    if quadratic:
+        div_cond = np.zeros(n_states)
+        for state in range(n_states):
+            div_cond[state] = np.mean(N[z0[:, state]]**2 - N[z0[:, state]]) * 0.5
+        div = div_cond @ π_tilde
+        res['QD'] = div
+        res['QD_cond'] = div_cond
+    else:
+        res['e'] = e
+        res['μ'] = μ
+
     return res
 
 
-def find_ξ(solver_args, min_RE, pct, initial_guess=1., interval=(0, 100.), tol=1e-5, max_iter=100):
+def find_ξ(solver_args, min_div, pct, initial_guess=1., interval=(0, 100.), tol=1e-5, max_iter=100):
     """
     This function finds the ξ that leads to x% increase to the
-    relative entropy compared to the minimum.
+    relative entropy or quadratic divergence compared to the minimum.
 
     Parameters
     ----------
     solver_args : tuple
         Arguments (except for ξ) to be passed into the solver, including
-        (f, g, z0, z1, tol, max_iter)
-    min_RE : float
-        Minimal relative entropy.
+        (f, g, z0, z1, quadratic, tol, max_iter)
+    min_div : float
+        Minimum divergence.
     pct : float
         Percent increase to the relative entropy.
         i.e. pct=0.2 means 20% increase to the entropy.
@@ -173,11 +182,14 @@ def find_ξ(solver_args, min_RE, pct, initial_guess=1., interval=(0, 100.), tol=
     count = 0
     ξ = initial_guess
     lower_bound, upper_bound = interval
-    f, g, z0, z1, solver_tol, solver_max_iter = solver_args
+    f, g, z0, z1, quadratic, solver_tol, solver_max_iter = solver_args
     while np.abs(error) > tol and count < max_iter:
-        result = solve(f, g, z0, z1, ξ, solver_tol, solver_max_iter)
-        RE = result['RE']
-        error = RE/min_RE - pct - 1
+        result = solve(f, g, z0, z1, ξ, quadratic, solver_tol, solver_max_iter)
+        if quadratic:
+            div = result['QD']
+        else:
+            div = result['RE']
+        error = div/min_div - pct - 1
         if np.abs(error) < tol or lower_bound == upper_bound:
             break
         if error < 0.:
@@ -195,8 +207,7 @@ def find_ξ(solver_args, min_RE, pct, initial_guess=1., interval=(0, 100.), tol=
 
 
 @njit
-def _objective(λ, f, g, z0, z1_float,
-               state, n_fos, e, ξ):
+def _objective(λ, f, g, z0, z1_float, state, n_fos, e, ξ):
     """
     The objective function.
     
@@ -226,6 +237,25 @@ def _objective_gradient(λ, f, g, z0, z1_float,
         temp3[i] = np.mean(temp2[:,i])
     return temp3         
 
+
+@njit
+def _objective_quadratic(λ, f, g, z0, z1_float, state, n_fos, e, ξ):
+    """
+    The objective function with quadratic specification of divergence.
+    
+    """
+    λ_1 = λ[:-1]
+    λ_2 = λ[-1]
+    selector = z0[:, state]
+    term_1 = g[selector]
+    term_2 = z1[selector]@v
+    term_3 = f[:, state*n_fos:(state+1)*n_fos][selector]@λ_1
+    term_4 = λ_2
+    x = (term_1+term_2+term_3+term_4)/(-ξ) + 0.5
+    x[x<0] = 0
+    result = np.mean(x**2)*(ξ/2.) + λ_2
+    return result
+    
 
 def _minimize_objective(f, g, z0, z1, state, n_fos, e, ξ, tol, max_iter):
     """
@@ -288,7 +318,7 @@ class OptimizeResult(dict):
         The coefficient of relative entropy constraint that users provide.
     ϵ, μ : float
         Model solution.
-    e, v_0 : (n_states,) ndarray
+    e, v : (n_states,) ndarray
         Model solution.
     λ : (n_f,) ndarray
         Model solution.
@@ -300,6 +330,10 @@ class OptimizeResult(dict):
         Implied conditional relative entropy.
     RE : float
         Unconditional relative entropy.
+    QD_cond : (n_states,) ndarray
+        Implied conditional quadratic divergence.
+    QD : float
+        Unconditional quadratic divergence.
     P : (n_states, n_states) ndarray
         Empirical transition probabilities.
     P_tilde : (n_states, n_states) ndarray
